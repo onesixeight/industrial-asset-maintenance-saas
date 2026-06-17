@@ -36,7 +36,7 @@ the end of each phase. Mirrors the process defined in
 - `redis-cli ping` → `PONG`.
 - `curl http://localhost:4000/health` → `{"status":"ok","timestamp":"2026-06-17T13:18:58.816Z"}`.
 
-**Git identity:** `Portfolio Developer <developer@portfolio.local>` (placeholder; replaced with the real GitHub account during Task 8 repo creation).
+**Git identity:** `onesixeight <onesixeight@users.noreply.github.com>` (GitHub noreply email — keeps the real address private while still attributing commits to the account).
 
 **Deferred / out of Phase 0:**
 - `gh` CLI install + GitHub repo creation + first push (Task 8) — requires user consent for a system-level install and `gh auth login`.
