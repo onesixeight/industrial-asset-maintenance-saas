@@ -33,6 +33,9 @@ Thumbs.db
 coverage/
 .nyc_output/
 
+# TypeScript incremental build info
+*.tsbuildinfo
+
 # Playwright
 test-results/
 playwright-report/
