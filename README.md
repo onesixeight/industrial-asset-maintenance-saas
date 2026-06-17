@@ -1,5 +1,7 @@
 # Industrial Asset & Maintenance SaaS
 
+[![CI](https://github.com/onesixeight/industrial-asset-maintenance-saas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/onesixeight/industrial-asset-maintenance-saas/actions/workflows/ci.yml)
+
 B2B SaaS for tracking industrial equipment, scheduling maintenance, managing
 spare-parts inventory, and running QR-based inspections. Portfolio project
 targeting the Kazakhstan IT job market.
@@ -15,7 +17,7 @@ Turborepo, Vitest, Playwright, Docker, GitHub Actions.
 ## Quick start
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/onesixeight/industrial-asset-maintenance-saas.git
 cd industrial-asset-maintenance-saas
 cp .env.example .env
 docker compose up -d        # postgres:16 + redis:7
