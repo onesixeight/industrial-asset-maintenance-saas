@@ -23,7 +23,7 @@ the end of each phase. Mirrors the process defined in
 - Adopted current stable majors (ADR 0001) rather than the plan's 2024-era pins. Verified actual published versions via `pnpm view` and pinned caret ranges in each `package.json`.
 - `@nestjs/config` Zod env validation **deferred to Phase 1** — env shapes (JWT, DB) only become meaningful once auth exists, so validating them in Phase 0 would be a placeholder. Recorded here, not silently.
 - Added root ESLint beyond the bare plan because `pnpm lint` would otherwise be a no-op and the CI gate would be meaningless. This keeps the verification gate honest.
-- `.nvmrc` pinned to `24` (local Node), not `22` as in the plan — Node 24 is the current LTS line and is supported by Next 16 / NestJS 11. ADR 0001 covers this.
+- `.nvmrc` pinned to `22` (Node 22 LTS — the active LTS line as of June 2026; Node 24 is the odd/current line until Oct 2026, not LTS). Keeps `.nvmrc`, CI (`node-version: 22`), `package.json` `engines` (`>=22`), and ADR 0001 all consistent. (Local machine runs Node 24, which is compatible — nvm will use 22 where pinned; CI enforces 22.)
 
 **Verified (real output, not assumed):**
 - `pnpm install` — clean (490+ packages, no peer-dep errors).
