@@ -22,7 +22,8 @@ describe("PrismaService", () => {
   });
 
   it("falls back to VALIDATED_ENV.DATABASE_URL when ConfigService has none", () => {
-    const svc = new PrismaService(config("ignored"), env);
+    // get() returns undefined so the `?? env.DATABASE_URL` fallback fires.
+    const svc = new PrismaService(config(undefined), env);
     expect(typeof svc.getClient().user.findUnique).toBe("function");
   });
 

@@ -9,14 +9,11 @@ import { VALIDATED_ENV, type Env } from "../config";
  * Wrapper around PrismaClient wired with the @prisma/adapter-pg driver
  * adapter (Prisma 7, per ADR 0001).
  *
- * NOTE: We COMPOSE (not extend) PrismaClient. Under vite-node/vitest the
- * generated PrismaClient uses a Proxy-based constructor that recurses
- * infinitely when subclassed (`extends PrismaClient`), so the standard
- * "extends PrismaClient" NestJS recipe is unusable here. Composition also
- * matches Prisma's recommended adapter pattern.
- *
- * A Proxy on the service forwards property access to the underlying client,
- * so callers use it exactly like a PrismaClient (e.g. `prisma.user.findMany`).
+ * We COMPOSE (not extend) PrismaClient. Under vite-node/vitest the generated
+ * PrismaClient uses a Proxy-based constructor that recurses infinitely when
+ * subclassed (`extends PrismaClient`), so the standard NestJS recipe is
+ * unusable here. Composition also matches Prisma's recommended adapter
+ * pattern. Callers obtain the client via `getClient()`.
  */
 @Injectable()
 export class PrismaService implements OnModuleDestroy {
@@ -29,11 +26,12 @@ export class PrismaService implements OnModuleDestroy {
     this.client = new PrismaClient({ adapter: new PrismaPg(this.pool) });
   }
 
-  /** Underlying PrismaClient — use when typing is needed. */
+  /** The underlying PrismaClient. Use `svc.getClient().user.findMany(...)` etc. */
   getClient(): PrismaClient {
     return this.client;
   }
 
+  /** Disconnect Prisma (leaves the pg pool open; see onModuleDestroy). */
   async $disconnect(): Promise<void> {
     await this.client.$disconnect();
   }
@@ -43,10 +41,3 @@ export class PrismaService implements OnModuleDestroy {
     await this.pool.end();
   }
 }
-
-/**
- * Type alias so consumers can type-inject the proxied service as a PrismaClient.
- * In practice we inject `PrismaService` and call `.getClient()` or rely on the
- * runtime proxy installed by the module (see prisma.module.ts).
- */
-export type { PrismaClient };
