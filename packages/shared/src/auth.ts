@@ -72,5 +72,7 @@ export const jwtPayloadSchema = z.object({
   role: userRoleSchema,
   jti: z.string().uuid(), // token id (for denylist)
   typ: z.enum(["access", "refresh"]),
+  // Standard JWT claim, present on verified tokens (added by the signer).
+  exp: z.number().int().nonnegative().optional(),
 });
 export type JwtPayload = z.infer<typeof jwtPayloadSchema>;
