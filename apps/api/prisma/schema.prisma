@@ -1,0 +1,218 @@
+// Prisma 7: the datasource `url` moved to prisma.config.ts (datasourceApi).
+// The driver adapter (@prisma/adapter-pg) is supplied to the PrismaClient
+// constructor in prisma.service.ts. See ADR 0001 + ADR 0002.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgres"
+}
+
+enum UserRole {
+  admin
+  manager
+  technician
+  viewer
+}
+
+enum AssetStatus {
+  active
+  maintenance
+  retired
+}
+
+enum WorkOrderType {
+  preventive
+  corrective
+  inspection
+}
+
+enum WorkOrderStatus {
+  open
+  in_progress
+  on_hold
+  completed
+  cancelled
+}
+
+enum Priority {
+  low
+  medium
+  high
+  critical
+}
+
+enum ReportStatus {
+  pending
+  completed
+  failed
+}
+
+model Company {
+  id            String   @id @default(uuid())
+  name          String
+  createdAt     DateTime @default(now())
+  users         User[]
+  locations     Location[]
+  categories    Category[]
+  assets        Asset[]
+  workOrders    WorkOrder[]
+  inspections   Inspection[]
+  templates     InspectionTemplate[]
+  parts         Part[]
+  reports       Report[]
+  // NOTE: Notification relates to User only (PROJECT_PLAN §6). The plan's
+  // Company.notifications back-relation had no opposite field on Notification
+  // and was therefore invalid; dropped here. Tracked in DEVELOPMENT_LOG.
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  password       String
+  firstName      String
+  lastName       String
+  role           UserRole @default(viewer)
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  assignedOrders WorkOrder[] @relation("AssignedTo")
+  inspections    Inspection[]
+  notifications  Notification[]
+  createdAt      DateTime @default(now())
+}
+
+model Location {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assets      Asset[]
+}
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assets      Asset[]
+}
+
+model Asset {
+  id           String      @id @default(uuid())
+  name         String
+  description  String?
+  serialNumber String?
+  qrCode       String      @unique
+  status       AssetStatus @default(active)
+  purchaseDate DateTime?
+  warrantyDate DateTime?
+  locationId   String
+  location     Location    @relation(fields: [locationId], references: [id])
+  categoryId   String
+  category     Category    @relation(fields: [categoryId], references: [id])
+  companyId    String
+  company      Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workOrders   WorkOrder[]
+  inspections  Inspection[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model WorkOrder {
+  id           String          @id @default(uuid())
+  title        String
+  description  String?
+  type         WorkOrderType
+  status       WorkOrderStatus @default(open)
+  priority     Priority        @default(medium)
+  assetId      String
+  asset        Asset           @relation(fields: [assetId], references: [id])
+  assignedToId String?
+  assignedTo   User?           @relation("AssignedTo", fields: [assignedToId], references: [id])
+  dueDate      DateTime?
+  completedAt  DateTime?
+  companyId    String
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parts        WorkOrderPart[] @relation("WorkOrderParts")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  deletedAt    DateTime?
+}
+
+model InspectionTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  items       Json
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  inspections Inspection[]
+  createdAt   DateTime @default(now())
+}
+
+model Inspection {
+  id            String             @id @default(uuid())
+  assetId       String
+  asset         Asset              @relation(fields: [assetId], references: [id])
+  templateId    String
+  template      InspectionTemplate @relation(fields: [templateId], references: [id])
+  results       Json
+  passed        Boolean
+  notes         String?
+  inspectedById String
+  inspectedBy   User               @relation(fields: [inspectedById], references: [id])
+  companyId     String
+  company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt     DateTime           @default(now())
+}
+
+model Part {
+  id             String          @id @default(uuid())
+  name           String
+  sku            String
+  description    String?
+  quantity       Int             @default(0)
+  minQuantity    Int             @default(0)
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workOrderParts WorkOrderPart[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([companyId, sku])
+}
+
+model WorkOrderPart {
+  id          String    @id @default(uuid())
+  workOrderId String
+  workOrder   WorkOrder @relation("WorkOrderParts", fields: [workOrderId], references: [id], onDelete: Cascade)
+  partId      String
+  part        Part      @relation(fields: [partId], references: [id], onDelete: Cascade)
+  quantity    Int
+  createdAt   DateTime  @default(now())
+
+  @@unique([workOrderId, partId])
+}
+
+model Report {
+  id         String       @id @default(uuid())
+  type       String
+  status     ReportStatus @default(pending)
+  fileUrl    String?
+  storageKey String?
+  companyId  String
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime     @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
