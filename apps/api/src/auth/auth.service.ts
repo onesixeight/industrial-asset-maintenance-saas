@@ -138,6 +138,7 @@ export class AuthService {
     lastName: string;
     role: UserRole;
     companyId: string;
+    mustChangePassword: boolean;
   }): UserResponse {
     return {
       id: user.id,
@@ -146,6 +147,7 @@ export class AuthService {
       lastName: user.lastName,
       role: user.role,
       companyId: user.companyId,
+      mustChangePassword: user.mustChangePassword,
     };
   }
 }

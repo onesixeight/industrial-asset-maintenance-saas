@@ -93,6 +93,7 @@ describe("userResponseSchema", () => {
       lastName: "B",
       role: "viewer",
       companyId: UUID,
+      mustChangePassword: false,
     };
     expect(userResponseSchema.parse(u)).toEqual(u);
   });
@@ -108,6 +109,7 @@ describe("authResponseSchema", () => {
         lastName: "B",
         role: "admin",
         companyId: UUID,
+        mustChangePassword: false,
       },
       accessToken: "a",
       refreshToken: "r",

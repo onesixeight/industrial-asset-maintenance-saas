@@ -74,6 +74,7 @@ model User {
   firstName      String
   lastName       String
   role           UserRole @default(viewer)
+  mustChangePassword Boolean @default(false)
   companyId      String
   company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   assignedOrders WorkOrder[] @relation("AssignedTo")
