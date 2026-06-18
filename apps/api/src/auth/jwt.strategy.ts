@@ -27,7 +27,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
   // Passport calls validate(payload) AFTER verifying the signature. Because
   // we want denylist checks + a single verification source, we instead take
   // the raw token from the request and re-verify with TokenService.
-  authenticate(req: any): void {
+  authenticate(req: { headers?: { authorization?: string } }): void {
     const header: string | undefined = req.headers?.authorization;
     const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
     if (!token) {
@@ -48,6 +48,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
 
   // Required by PassportStrategy typing; not used in pass-through mode.
   validate(payload: JwtPayload): JwtPayload {
+    void payload;
     return payload;
   }
 }

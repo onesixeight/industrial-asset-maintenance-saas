@@ -3,7 +3,6 @@ import Redis from "ioredis";
 import { RedisService } from "./redis.service";
 
 const URL = "redis://localhost:6379";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const config = (url: string | undefined): any =>
   ({ get: (k: string) => (k === "REDIS_URL" ? url : undefined) }) as any;
 const env = { REDIS_URL: URL } as never;

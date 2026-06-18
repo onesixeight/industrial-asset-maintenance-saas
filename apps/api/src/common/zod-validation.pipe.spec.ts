@@ -8,13 +8,13 @@ const pipe = new ZodValidationPipe(schema);
 
 describe("ZodValidationPipe", () => {
   it("returns parsed data on valid input", () => {
-    const out = pipe.transform({ email: "a@b.com", n: 3 }, {} as never);
+    const out = pipe.transform({ email: "a@b.com", n: 3 });
     expect(out).toEqual({ email: "a@b.com", n: 3 });
   });
 
   it("throws BadRequestException with joined messages on invalid input", () => {
     try {
-      pipe.transform({ email: "nope", n: "x" }, {} as never);
+      pipe.transform({ email: "nope", n: "x" });
       throw new Error("should have thrown");
     } catch (e) {
       expect(e).toBeInstanceOf(BadRequestException);
@@ -25,6 +25,6 @@ describe("ZodValidationPipe", () => {
 
   it("accepts arrays and primitives", () => {
     const p = new ZodValidationPipe(z.array(z.string()));
-    expect(p.transform(["a", "b"], {} as never)).toEqual(["a", "b"]);
+    expect(p.transform(["a", "b"])).toEqual(["a", "b"]);
   });
 });

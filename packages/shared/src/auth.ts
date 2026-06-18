@@ -21,9 +21,9 @@ export const registerRequestSchema = z.object({
     .regex(/[0-9]/, "Password must contain a digit"),
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
-  // companyId is provided by the first-user bootstrap / invite flow; the
-  // Phase 1a register endpoint accepts it in the body for simplicity.
-  companyId: z.string().uuid(),
+  // Company name — registration transactionally creates the Company and its
+  // first admin User (spec §3.2 / §4). Later users join via /users (Phase 2).
+  company: z.string().min(1).max(100),
 });
 export type RegisterRequest = z.infer<typeof registerRequestSchema>;
 
@@ -63,6 +63,14 @@ export const userResponseSchema = z.object({
   companyId: z.string().uuid(),
 });
 export type UserResponse = z.infer<typeof userResponseSchema>;
+
+// --- Auth response (register / login) ---------------------------------------
+
+/** Register/login return the authenticated user plus a fresh token pair. */
+export const authResponseSchema = tokenResponseSchema.extend({
+  user: userResponseSchema,
+});
+export type AuthResponse = z.infer<typeof authResponseSchema>;
 
 // --- JWT payload (internal) -------------------------------------------------
 

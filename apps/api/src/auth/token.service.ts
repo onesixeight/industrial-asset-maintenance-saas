@@ -55,8 +55,11 @@ export class TokenService {
   }
 
   /**
-   * Verify a token's signature + claims. Returns null if invalid OR if the
-   * jti is on the Redis denylist (revoked).
+   * Verify a token's signature + claims. Returns null if invalid, has the
+   * wrong type, or — for refresh tokens only — its jti is on the Redis
+   * denylist. Access tokens are verified statelessly (spec §4: an access
+   * denylist would negate statelessness; their short TTL is the accepted
+   * exposure window).
    */
   async verify(token: string, typ: "access" | "refresh"): Promise<JwtPayload | null> {
     let payload: JwtPayload;
@@ -66,7 +69,7 @@ export class TokenService {
       return null;
     }
     if (payload.typ !== typ) return null;
-    if (await this.isRevoked(payload.jti)) return null;
+    if (typ === "refresh" && (await this.isRevoked(payload.jti))) return null;
     return payload;
   }
 

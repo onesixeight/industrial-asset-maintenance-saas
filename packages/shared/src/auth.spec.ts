@@ -5,6 +5,7 @@ import {
   refreshRequestSchema,
   tokenResponseSchema,
   userResponseSchema,
+  authResponseSchema,
   jwtPayloadSchema,
   userRoleSchema,
 } from "./auth";
@@ -28,7 +29,7 @@ describe("registerRequestSchema", () => {
     password: "Password1",
     firstName: "Alice",
     lastName: "Smith",
-    companyId: UUID,
+    company: "Acme Industrial",
   };
   it("accepts a valid registration", () => {
     expect(registerRequestSchema.parse(valid)).toEqual(valid);
@@ -44,8 +45,8 @@ describe("registerRequestSchema", () => {
   it("rejects an invalid email", () => {
     expect(() => registerRequestSchema.parse({ ...valid, email: "nope" })).toThrow();
   });
-  it("rejects a non-uuid companyId", () => {
-    expect(() => registerRequestSchema.parse({ ...valid, companyId: "not-a-uuid" })).toThrow();
+  it("rejects an empty company name", () => {
+    expect(() => registerRequestSchema.parse({ ...valid, company: "" })).toThrow();
   });
 });
 
@@ -94,6 +95,25 @@ describe("userResponseSchema", () => {
       companyId: UUID,
     };
     expect(userResponseSchema.parse(u)).toEqual(u);
+  });
+});
+
+describe("authResponseSchema", () => {
+  it("accepts a user plus a token pair", () => {
+    const r = {
+      user: {
+        id: UUID,
+        email: "a@b.com",
+        firstName: "A",
+        lastName: "B",
+        role: "admin",
+        companyId: UUID,
+      },
+      accessToken: "a",
+      refreshToken: "r",
+      expiresIn: 900,
+    };
+    expect(authResponseSchema.parse(r).user.role).toBe("admin");
   });
 });
 

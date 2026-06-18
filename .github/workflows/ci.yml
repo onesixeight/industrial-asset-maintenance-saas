@@ -35,8 +35,17 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
+      # apps/api/test/setup.env.ts forces DATABASE_URL to DATABASE_URL_TEST
+      # (falling back to the local :5433 test DB). CI's test postgres runs on
+      # the default host port 5432, so point DATABASE_URL_TEST at it; this also
+      # covers `prisma migrate deploy` below, which reads DATABASE_URL directly.
+      DATABASE_URL: postgresql://iam:iam@localhost:5432/iam_test?schema=public
       DATABASE_URL_TEST: postgresql://iam:iam@localhost:5432/iam_test?schema=public
       REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-secret-at-least-16-chars
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 7d
+      NODE_ENV: test
 
     steps:
       - uses: actions/checkout@v5
@@ -46,6 +55,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Apply Prisma migrations (test DB)
+        run: pnpm --filter @iam/api exec prisma migrate deploy --schema prisma/schema.prisma
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

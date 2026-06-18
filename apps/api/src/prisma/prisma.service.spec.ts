@@ -7,7 +7,6 @@ import { PrismaService } from "./prisma.service";
 // to each other and recurse infinitely on instantiation. Getting the client
 // only through PrismaService avoids the double transform.
 const URL = "postgresql://iam:iam@localhost:5433/iam_test?schema=public";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const config = (url: string | undefined): any =>
   ({ get: (k: string) => (k === "DATABASE_URL" ? url : undefined) }) as any;
 const env = { DATABASE_URL: URL } as never;

@@ -4,7 +4,15 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import * as bcrypt from "bcrypt";
-import type { RegisterRequest, LoginRequest, JwtPayload, UserResponse } from "@iam/shared";
+import { Prisma } from "@prisma/client";
+import type {
+  AuthResponse,
+  RegisterRequest,
+  LoginRequest,
+  JwtPayload,
+  UserResponse,
+  UserRole,
+} from "@iam/shared";
 import { PrismaService } from "../prisma";
 import { TokenService } from "./token.service";
 
@@ -17,7 +25,12 @@ export class AuthService {
     private readonly tokens: TokenService,
   ) {}
 
-  async register(input: RegisterRequest) {
+  /**
+   * Transactionally create a Company + its first admin User, then issue a
+   * token pair. Spec §3.2: registration is the first-admin bootstrap; later
+   * users join via /users (Phase 2).
+   */
+  async register(input: RegisterRequest): Promise<AuthResponse> {
     const existing = await this.prisma.getClient().user.findUnique({
       where: { email: input.email },
       select: { id: true },
@@ -26,26 +39,44 @@ export class AuthService {
       throw new ConflictException("Email already registered");
     }
     const password = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
-    const user = await this.prisma.getClient().user.create({
-      data: {
-        email: input.email,
-        password,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        companyId: input.companyId,
-        // Role: schema default (viewer). Admin/manager provisioning is a
-        // separate bootstrap flow (Phase 1b/10), out of scope for 1a.
-      },
-    });
+    let user;
+    try {
+      user = await this.prisma.getClient().$transaction(async (tx) => {
+        const company = await tx.company.create({ data: { name: input.company } });
+        return tx.user.create({
+          data: {
+            email: input.email,
+            password,
+            firstName: input.firstName,
+            lastName: input.lastName,
+            // First user of a company is the admin (spec §3.2, §5).
+            role: "admin",
+            companyId: company.id,
+          },
+        });
+      });
+    } catch (err) {
+      // The pre-check above is a fast-path; the unique constraint on
+      // User.email is the source of truth. A concurrent registration that
+      // wins the race surfaces here as P2002 — map it to 409 rather than 500.
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        throw new ConflictException("Email already registered");
+      }
+      throw err;
+    }
+    const userResponse = this.toUserResponse(user);
     const pair = await this.tokens.issuePair({
       userId: user.id,
       companyId: user.companyId,
       role: user.role,
     });
-    return pair;
+    return { ...pair, user: userResponse };
   }
 
-  async login(input: LoginRequest) {
+  async login(input: LoginRequest): Promise<AuthResponse> {
     const user = await this.prisma.getClient().user.findUnique({
       where: { email: input.email },
     });
@@ -58,11 +89,13 @@ export class AuthService {
     if (!ok) {
       throw new UnauthorizedException("Invalid credentials");
     }
-    return this.tokens.issuePair({
+    const userResponse = this.toUserResponse(user);
+    const pair = await this.tokens.issuePair({
       userId: user.id,
       companyId: user.companyId,
       role: user.role,
     });
+    return { ...pair, user: userResponse };
   }
 
   async refresh(refreshToken: string) {
@@ -95,6 +128,17 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException();
     }
+    return this.toUserResponse(user);
+  }
+
+  private toUserResponse(user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: UserRole;
+    companyId: string;
+  }): UserResponse {
     return {
       id: user.id,
       email: user.email,

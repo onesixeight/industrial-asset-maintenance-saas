@@ -75,7 +75,7 @@ model User {
   lastName       String
   role           UserRole @default(viewer)
   companyId      String
-  company        Company  @relation(fields: [companyId], references: [id])
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   assignedOrders WorkOrder[] @relation("AssignedTo")
   inspections    Inspection[]
   notifications  Notification[]

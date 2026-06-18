@@ -5,7 +5,6 @@ import { Test } from "@nestjs/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TokenService } from "./token.service";
 import { RedisService } from "../redis";
-import { VALIDATED_ENV } from "../config";
 import Redis from "ioredis";
 
 const SECRET = "test-secret-at-least-16-chars";

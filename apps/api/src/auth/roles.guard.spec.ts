@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { RolesGuard } from "./roles.guard";
 import type { JwtPayload } from "@iam/shared";
 
-function ctx(user: JwtPayload | undefined, roles?: string[]) {
+function ctx(user: JwtPayload | undefined) {
   return {
     switchToHttp: () => ({ getRequest: () => ({ user }) }),
     getHandler: () => "h",

@@ -6,7 +6,7 @@ Tracker mirrors the roadmap in
 | Phase | Name | Status |
 |---|---|---|
 | 0 | Foundation | ✅ Complete |
-| 1 | Authentication (JWT `jti`, refresh + Redis revocation, throttler, roles/guard) | ⬜ Pending |
+| 1 | Authentication (JWT `jti`, refresh + Redis revocation, throttler, roles/guard) | 🟡 In progress (1a backend ✅, 1b frontend ⬜) |
 | 2 | Reference data (locations, categories, users) | ⬜ Pending |
 | 3 | Assets + QR codes | ⬜ Pending |
 | 4 | Work orders | ⬜ Pending |
@@ -23,7 +23,8 @@ Tracker mirrors the roadmap in
 Per execution-process spec §3.1, each critical path must be covered by passing
 tests **within its phase** (not deferred to Phase 9):
 
-- [ ] **Phase 1** — register, login, refresh, role guard
+- [x] **Phase 1a (backend)** — register (tx Company+admin), login, refresh (rotation + Redis denylist), logout, me, throttle 429, RolesGuard `/auth/admin-probe` (200 admin / 403 viewer). 11/11 critical-path tests pass on real PostgreSQL.
+- [ ] **Phase 1b (frontend)** — login/register pages, Zustand auth store, silent refresh, `(dashboard)` guard
 - [ ] **Phase 4** — work-order status transitions (reject invalid)
 - [ ] **Phase 5** — inspection `passed` = true only if all items passed
 - [ ] **Phase 6** — parts consumption (transactional decrement), restock, low-stock trigger
