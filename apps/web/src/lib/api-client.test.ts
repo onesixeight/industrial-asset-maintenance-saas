@@ -25,15 +25,17 @@ describe("apiFetch", () => {
   });
 
   it("on 401 refreshes once and retries with the new token", async () => {
-    // original 401 → refresh returns a new access token → retry succeeds
+    // original 401 → refresh returns a new access token → silentRefresh fetches
+    // /me with it (to repopulate the user) → the original request is retried.
     (fetch as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
       .mockResolvedValueOnce(ok({ accessToken: "new", refreshToken: "r", expiresIn: 900 }))
-      .mockResolvedValueOnce(ok({ ok: true }));
+      .mockResolvedValueOnce(ok({ id: "u", email: "a@b.test" })) // /me in silentRefresh
+      .mockResolvedValueOnce(ok({ ok: true })); // retry of the original request
     const res = await apiFetch("/api/anything");
     expect(res.ok).toBe(true);
     expect(useAuthStore.getState().accessToken).toBe("new");
-    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(3);
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(4);
   });
 
   it("clears auth and returns the 401 if refresh fails", async () => {

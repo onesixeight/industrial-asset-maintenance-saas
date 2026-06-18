@@ -1,9 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { meApi } from "@/lib/api/auth";
 import { silentRefresh } from "@/lib/auth/refresh";
 import { useAuth, useLogout } from "@/lib/auth/hooks";
 import { useAuthStore } from "@/lib/auth/store";
@@ -11,30 +9,32 @@ import { Button } from "@/components/button";
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, status, accessToken } = useAuth();
+  const { user, status } = useAuth();
   const logout = useLogout();
 
   // On first load the access token is in memory = empty. Attempt one silent
-  // refresh (uses the httpOnly refresh cookie) to repopulate it.
+  // refresh (uses the httpOnly refresh cookie) to repopulate { user, token }
+  // and flip status to "authenticated". If it fails, redirect to /login.
   useEffect(() => {
-    if (status === "idle") void silentRefresh();
-  }, [status]);
-
-  const me = useQuery({
-    queryKey: ["me"],
-    queryFn: () => meApi(useAuthStore.getState().accessToken ?? ""),
-    enabled: !!accessToken,
-  });
-
-  const email = user?.email ?? me.data?.email;
-  const loading = status === "idle" || (!!accessToken && !email);
+    if (status !== "idle") return;
+    void silentRefresh().then((ok) => {
+      if (!ok) router.replace("/login");
+    });
+  }, [status, router]);
 
   async function onLogout() {
-    await logout.mutateAsync();
+    // Best-effort: revoke the refresh cookie server-side, but always clear the
+    // local session and redirect — a failed logout must not strand the user.
+    try {
+      await logout.mutateAsync();
+    } catch {
+      useAuthStore.getState().clear();
+    }
     router.push("/login");
   }
 
-  if (loading) return <p className="p-8 text-muted-foreground">Loading…</p>;
+  if (status === "idle") return <p className="p-8 text-muted-foreground">Loading…</p>;
+  if (status === "unauthenticated") return null; // redirecting to /login
 
   return (
     <main className="flex min-h-screen flex-col gap-6 p-8">
@@ -45,7 +45,7 @@ export default function DashboardPage() {
         </Button>
       </div>
       <p className="text-muted-foreground">
-        Welcome, {email ?? "user"}. (Full UI lands in Phase 7.)
+        Welcome, {user?.email ?? "user"}. (Full UI lands in Phase 7.)
       </p>
     </main>
   );
