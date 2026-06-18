@@ -87,7 +87,7 @@ export class AuthController {
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const refreshToken = readRefresh(req);
     if (refreshToken) await this.auth.logout(refreshToken);
-    res.clearCookie(REFRESH_COOKIE, { path: "/auth" });
+    res.clearCookie(REFRESH_COOKIE, { path: "/" });
     return { success: true };
   }
 
@@ -113,7 +113,11 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      path: "/auth",
+      // Path "/" (not "/auth"): the Next.js (dashboard) Server Component
+      // guard reads the refresh cookie at /dashboard to decide whether to
+      // allow a silent-refresh attempt. The cookie is httpOnly (no JS access)
+      // and only /auth/refresh + /auth/logout consume it server-side.
+      path: "/",
     });
   }
 }
