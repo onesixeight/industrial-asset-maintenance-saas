@@ -3,6 +3,7 @@ import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { AppController } from "./app.controller";
 import { AuthModule } from "./auth/auth.module";
+import { CategoriesModule } from "./categories/categories.module";
 import { ConfigModule } from "./config";
 import { LocationsModule } from "./locations/locations.module";
 import { PrismaModule } from "./prisma";
@@ -18,6 +19,7 @@ import { RedisModule } from "./redis";
     RedisModule,
     AuthModule,
     LocationsModule,
+    CategoriesModule,
   ],
   controllers: [AppController],
   providers: [
