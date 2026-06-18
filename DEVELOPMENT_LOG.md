@@ -84,3 +84,39 @@ the end of each phase. Mirrors the process defined in
 - `sameSite: "none"` + `secure: true` cookie for prod cross-origin (Phase 10 deployment).
 
 **Next:** Phase 1b — frontend auth UI + protected routes.
+
+---
+
+## 2026-06-19 — Phase 1b: Auth Frontend
+
+**Done:**
+- Web deps: Zustand (in-memory token store), TanStack Query v5 (mutations + silent refresh), React Hook Form v7 + @hookform/resolvers/zod (shared-schema validation). Vitest 2.1.0 (pinned to match api; vitest 4 broke on the monorepo's vite 5). Tailwind v4 `@theme` form/util tokens.
+- Backend coordination: widened the refresh cookie path `/auth` → `/` so the `(dashboard)` Server Component guard can read it via `next/headers` `cookies()` at `/dashboard` (httpOnly; only `/auth/refresh` + `/auth/logout` consume it server-side).
+- Dev proxy: `next.config.ts` rewrites `/api/:path*` → `${API_ORIGIN}/:path*` (default `:4000`). Same-origin fetch means the `sameSite: "lax"` refresh cookie is sent/accepted in dev without cross-origin CORS-cookie gymnastics. `NEXT_PUBLIC_API_URL=/api` (client base). Prod cross-origin + `sameSite:"none"; secure` deferred to Phase 10.
+- `lib/api/auth.ts`: typed `registerApi`/`loginApi`/`refreshApi`/`logoutApi`/`meApi` over `fetch` with `credentials: "include"`; errors carry `status`. `BASE` read at call time so tests can swap `NEXT_PUBLIC_API_URL`.
+- `lib/auth/store.ts`: Zustand store — `user`, `accessToken` (memory only), `status` (`idle|loading|authenticated|unauthenticated`).
+- `lib/auth/refresh.ts` + `lib/api-client.ts`: `silentRefresh()` dedupes concurrent calls, fetches `/me` with the new token, and `setAuth`s `{user, token}` (flipping status to `authenticated`). `apiFetch` attaches the in-memory Bearer token and on a 401 attempts one silent refresh + one retry, clearing auth on a second failure (no loop).
+- `lib/auth/hooks.ts`: `useLogin`/`useRegister`/`useLogout` TanStack mutations that update the store.
+- UI primitives hand-rolled on Tailwind v4 (`button`, `form-field`, `auth-form`) — shadcn/ui `init` is known-broken on TW v4 (spec §7/§10), so the few components needed are built directly. `auth-form` is parameterised by mode and uses the shared `loginRequestSchema`/`registerRequestSchema`.
+- Routes: `(auth)/login` + `(auth)/register` (centered card shell); `(dashboard)/layout.tsx` Server Component guard (no `refresh_token` cookie → `redirect('/login')`); `(dashboard)/dashboard/page.tsx` triggers `silentRefresh` on load, redirects to `/login` on failure, renders "Welcome, {email}" + logout; `/` redirects to `/dashboard`.
+- Tests: 11 web unit tests (auth api 5, store 3, api-client 3). All on the same Vitest 2.1.0 as the api.
+
+**Decisions:**
+- **Access token in memory only** (Zustand), refresh token in httpOnly cookie — no `localStorage`/`sessionStorage`/`document.cookie` anywhere (spec §7). Lost on reload → `silentRefresh` via the cookie restores `{user, token}` (fetching `/me` so the store is whole, not half-set).
+- **Server Component guard checks cookie presence, not validity**: presence = "the browser *might* have a session" (the access token is in-memory and never reaches the server); validity is re-established client-side via silent refresh. A revoked-but-present cookie falls through the guard, but the dashboard's failed-refresh path redirects to `/login`.
+- **Dev proxy over cross-origin fetch**: avoids `sameSite:"lax"` cookie-not-sent and wildcard-origin-with-credentials rejection in dev. CORS already permits `localhost:3000` with `credentials:true`.
+- **`meApi` calls `fetch` directly** (not `apiFetch`): in `silentRefresh` the token is freshly minted so a 401 retry is moot. `apiFetch`'s 401-retry path is infrastructure for Phase 2+ authenticated endpoints; documented as such.
+
+**Verified (real output, not assumed):**
+- `pnpm lint` — 3 workspaces pass.
+- `pnpm typecheck` — 3 workspaces pass.
+- `pnpm test` — api 50 + shared 16 + web 11, all green.
+- `pnpm build` — api + web both build; web emits `/login`, `/register`, `/dashboard` (ƒ dynamic, server-rendered — the guard reads cookies), `/` (redirect).
+- Subagent review: initially CHANGES_REQUESTED (silent refresh left `status='idle'` → dashboard stuck on "Loading…"; no failed-refresh redirect; `onLogout` had no error handling). Fixed and re-verified: `silentRefresh` now `setAuth`s via `/me`; dashboard redirects on failure; `onLogout` is best-effort (always clears + redirects).
+
+**Deferred / out of Phase 1b:**
+- Redis-backed throttler storage (Phase 8/9).
+- `sameSite: "none"` + `secure: true` for prod cross-origin (Phase 10).
+- Full dashboard UI (Phase 7).
+
+**Next:** Phase 2 — reference data (locations, categories, users CRUD + `/users` admin page replacing the `/auth/admin-probe`).
