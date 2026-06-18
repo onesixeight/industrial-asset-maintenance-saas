@@ -8,6 +8,7 @@ import { ConfigModule } from "./config";
 import { LocationsModule } from "./locations/locations.module";
 import { PrismaModule } from "./prisma";
 import { RedisModule } from "./redis";
+import { UsersModule } from "./users/users.module";
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { RedisModule } from "./redis";
     AuthModule,
     LocationsModule,
     CategoriesModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [
