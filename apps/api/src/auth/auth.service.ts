@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -7,6 +8,7 @@ import * as bcrypt from "bcrypt";
 import { Prisma } from "@prisma/client";
 import type {
   AuthResponse,
+  ChangePasswordRequest,
   RegisterRequest,
   LoginRequest,
   JwtPayload,
@@ -89,11 +91,53 @@ export class AuthService {
     if (!ok) {
       throw new UnauthorizedException("Invalid credentials");
     }
+    // Force-change gate: users created via /users carry a temp password and
+    // must change it before they can receive tokens (spec §5). The 403 body
+    // carries a code so the client routes to /change-password, not a generic 403.
+    if (user.mustChangePassword) {
+      throw new ForbiddenException({ code: "MUST_CHANGE_PASSWORD" });
+    }
     const userResponse = this.toUserResponse(user);
     const pair = await this.tokens.issuePair({
       userId: user.id,
       companyId: user.companyId,
       role: user.role,
+    });
+    return { ...pair, user: userResponse };
+  }
+
+  /**
+   * Verify the current password, set the new one, clear the force-change flag,
+   * and issue a fresh token pair (so the caller is now authenticated). Used by
+   * the force-change flow (spec §5) — note this is NOT a Bearer endpoint: the
+   * blocked login issued no tokens, so the caller proves identity with
+   * email + currentPassword.
+   */
+  async changePassword(input: ChangePasswordRequest): Promise<AuthResponse> {
+    const user = await this.prisma.getClient().user.findUnique({
+      where: { email: input.email },
+    });
+    if (!user) {
+      // Constant-time-ish: still hash to avoid user-enumeration timing.
+      await bcrypt.hash(input.currentPassword, BCRYPT_ROUNDS);
+      throw new UnauthorizedException("Invalid credentials");
+    }
+    const ok = await bcrypt.compare(input.currentPassword, user.password);
+    if (!ok) {
+      throw new UnauthorizedException("Invalid credentials");
+    }
+    // newPassword is already validated against the shared password policy by
+    // the controller's ZodValidationPipe, so no extra check here.
+    const password = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
+    const updated = await this.prisma.getClient().user.update({
+      where: { id: user.id },
+      data: { password, mustChangePassword: false },
+    });
+    const userResponse = this.toUserResponse(updated);
+    const pair = await this.tokens.issuePair({
+      userId: updated.id,
+      companyId: updated.companyId,
+      role: updated.role,
     });
     return { ...pair, user: userResponse };
   }

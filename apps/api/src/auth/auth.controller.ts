@@ -13,13 +13,18 @@ import { Throttle } from "@nestjs/throttler";
 import type { Request, Response } from "express";
 import type {
   AuthResponse,
+  ChangePasswordRequest,
   JwtPayload,
   LoginRequest,
   RegisterRequest,
   TokenResponse,
   UserResponse,
 } from "@iam/shared";
-import { loginRequestSchema, registerRequestSchema } from "@iam/shared";
+import {
+  changePasswordRequestSchema,
+  loginRequestSchema,
+  registerRequestSchema,
+} from "@iam/shared";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { CurrentUser } from "./current-user.decorator";
 import { JwtAuthGuard } from "./jwt-auth.guard";
@@ -67,6 +72,20 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
     const result = await this.auth.login(body);
+    this.setRefreshCookie(res, result.refreshToken);
+    return result;
+  }
+
+  @Post("change-password")
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async changePassword(
+    @Body(new ZodValidationPipe(changePasswordRequestSchema)) body: ChangePasswordRequest,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponse> {
+    // No Bearer: the blocked login issued no tokens; the caller proves identity
+    // with email + currentPassword (spec §5). On success sets the refresh cookie.
+    const result = await this.auth.changePassword(body);
     this.setRefreshCookie(res, result.refreshToken);
     return result;
   }

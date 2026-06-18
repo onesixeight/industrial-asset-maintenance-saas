@@ -1,4 +1,5 @@
-import { ConflictException, UnauthorizedException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, UnauthorizedException } from "@nestjs/common";
+import * as bcrypt from "bcrypt";
 import { JwtModule, JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { Prisma } from "@prisma/client";
@@ -239,6 +240,110 @@ describe("AuthService.register duplicate-email race (P2002 → 409)", () => {
         company: "Race Co",
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+});
+
+describe("AuthService.login force-change gate", () => {
+  it("rejects a must-change-password user with ForbiddenException (no tokens)", async () => {
+    // Register an admin (mustChangePassword=false by default), then flip a
+    // second user's flag via direct prisma seeding.
+    const reg = await svc.register({
+      email: "gate@acme.test",
+      password: "Password1",
+      firstName: "Gate",
+      lastName: "User",
+      company: "Gate Co",
+    });
+    const password = await bcrypt.hash("TempPass1", 12);
+    await prisma.getClient().user.create({
+      data: {
+        email: "newhire@acme.test",
+        password,
+        firstName: "New",
+        lastName: "Hire",
+        role: "viewer",
+        mustChangePassword: true,
+        companyId: reg.user.companyId,
+      },
+    });
+    await expect(
+      svc.login({ email: "newhire@acme.test", password: "TempPass1" }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe("AuthService.changePassword", () => {
+  it("verifies current password, clears the flag, and returns an AuthResponse", async () => {
+    const reg = await svc.register({
+      email: "cp@acme.test",
+      password: "Password1",
+      firstName: "CP",
+      lastName: "Admin",
+      company: "CP Co",
+    });
+    const password = await bcrypt.hash("TempPass1", 12);
+    await prisma.getClient().user.create({
+      data: {
+        email: "cpuser@acme.test",
+        password,
+        firstName: "CP",
+        lastName: "User",
+        role: "viewer",
+        mustChangePassword: true,
+        companyId: reg.user.companyId,
+      },
+    });
+
+    const res = await svc.changePassword({
+      email: "cpuser@acme.test",
+      currentPassword: "TempPass1",
+      newPassword: "NewPass1",
+    });
+    expect(res.accessToken).toBeTruthy();
+    expect(res.user.mustChangePassword).toBe(false);
+
+    // Flag persisted cleared: a normal login now succeeds.
+    const login = await svc.login({ email: "cpuser@acme.test", password: "NewPass1" });
+    expect(login.accessToken).toBeTruthy();
+  });
+
+  it("rejects with UnauthorizedException on wrong current password", async () => {
+    const reg = await svc.register({
+      email: "cpw@acme.test",
+      password: "Password1",
+      firstName: "C",
+      lastName: "W",
+      company: "CPW Co",
+    });
+    const password = await bcrypt.hash("TempPass1", 12);
+    await prisma.getClient().user.create({
+      data: {
+        email: "cpwuser@acme.test",
+        password,
+        firstName: "C",
+        lastName: "W",
+        role: "viewer",
+        mustChangePassword: true,
+        companyId: reg.user.companyId,
+      },
+    });
+    await expect(
+      svc.changePassword({
+        email: "cpwuser@acme.test",
+        currentPassword: "WrongCurrent1",
+        newPassword: "NewPass1",
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it("rejects with UnauthorizedException on unknown email (no enumeration)", async () => {
+    await expect(
+      svc.changePassword({
+        email: "nobody@acme.test",
+        currentPassword: "TempPass1",
+        newPassword: "NewPass1",
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });
 
