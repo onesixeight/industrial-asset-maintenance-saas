@@ -1,0 +1,452 @@
+{
+  "D:\\portfolioProject_1\\apps\\api\\nest-cli.json": {
+    "mtime": 1781703733.9978585,
+    "ast_hash": "d31d95b675cf5e34d9389ed614afc98a",
+    "semantic_hash": "d31d95b675cf5e34d9389ed614afc98a"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\package.json": {
+    "mtime": 1781723599.852909,
+    "ast_hash": "1d56b0f2363188f2b14e7faf28eba8be",
+    "semantic_hash": "1d56b0f2363188f2b14e7faf28eba8be"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\prisma.config.ts": {
+    "mtime": 1781708521.196497,
+    "ast_hash": "d134b6467ae9bee39cfb3d80654cab17",
+    "semantic_hash": "d134b6467ae9bee39cfb3d80654cab17"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\prisma\\migrations\\20260617150207_init\\migration.sql": {
+    "mtime": 1781708527.262158,
+    "ast_hash": "6e8f5addc282f5b91493ccefc86b8a67",
+    "semantic_hash": "6e8f5addc282f5b91493ccefc86b8a67"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\prisma\\migrations\\20260618184813_user_company_cascade\\migration.sql": {
+    "mtime": 1781808493.7328258,
+    "ast_hash": "edc08495a25e1898966bd9073e903d75",
+    "semantic_hash": "edc08495a25e1898966bd9073e903d75"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\app.controller.spec.ts": {
+    "mtime": 1781703733.9988592,
+    "ast_hash": "99f0d749166551b24eedf6cb89134a0f",
+    "semantic_hash": "99f0d749166551b24eedf6cb89134a0f"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\app.controller.ts": {
+    "mtime": 1781703733.9988592,
+    "ast_hash": "afbe3b912d44d4dbf13e8941615c3439",
+    "semantic_hash": "afbe3b912d44d4dbf13e8941615c3439"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\app.module.ts": {
+    "mtime": 1781723228.3434322,
+    "ast_hash": "e2830c8860757da6ab3dc32dcc3b682b",
+    "semantic_hash": "e2830c8860757da6ab3dc32dcc3b682b"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\auth\\auth.controller.ts": {
+    "mtime": 1781815751.687745,
+    "ast_hash": "050324416b7afd7e7eca2a6ee9578491",
+    "semantic_hash": "050324416b7afd7e7eca2a6ee9578491"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\auth\\auth.module.ts": {
+    "mtime": 1781723254.6621041,
+    "ast_hash": "8d1d5cf2213c3c62014b9be1953e397c",
+    "semantic_hash": "8d1d5cf2213c3c62014b9be1953e397c"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\auth\\auth.service.spec.ts": {
+    "mtime": 1781810591.7672524,
+    "ast_hash": "9cf389be75f27bed7abdba155a203c38",
+    "semantic_hash": "9cf389be75f27bed7abdba155a203c38"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\auth\\auth.service.ts": {
+    "mtime": 1781810508.2715387,
+    "ast_hash": "ba2463d84ce8d305cb37eb2c4f18c649",
+    "semantic_hash": "ba2463d84ce8d305cb37eb2c4f18c649"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\auth\\current-user.decorator.ts": {
+    "mtime": 1781722972.0984468,
+    "ast_hash": "fd6a3af497e21a495b15a30245274fa7",
+    "semantic_hash": "fd6a3af497e21a495b15a30245274fa7"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\auth\\jwt-auth.guard.ts": {
+    "mtime": 1781723021.120394,
+    "ast_hash": "310a604d49ec521501849948308aaf10",
+    "semantic_hash": "310a604d49ec521501849948308aaf10"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\auth\\jwt.strategy.ts": {
+    "mtime": 1781786181.676162,
+    "ast_hash": "18a0fcc085f70645add8c530a34245d5",
+    "semantic_hash": "18a0fcc085f70645add8c530a34245d5"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\auth\\roles.decorator.ts": {
+    "mtime": 1781722982.5490546,
+    "ast_hash": "3abf552303e53d4dba7c97c916d1db28",
+    "semantic_hash": "3abf552303e53d4dba7c97c916d1db28"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\auth\\roles.guard.spec.ts": {
+    "mtime": 1781724117.310144,
+    "ast_hash": "ebe094eb629bd283fcb08af41f5ce02f",
+    "semantic_hash": "ebe094eb629bd283fcb08af41f5ce02f"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\auth\\roles.guard.ts": {
+    "mtime": 1781722990.2840858,
+    "ast_hash": "e8e419bbcf598f430b027cd769c22365",
+    "semantic_hash": "e8e419bbcf598f430b027cd769c22365"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\common\\zod-validation.pipe.spec.ts": {
+    "mtime": 1781786314.1810796,
+    "ast_hash": "eadb6c4b6e8ede31dc9ae94c0246063e",
+    "semantic_hash": "eadb6c4b6e8ede31dc9ae94c0246063e"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\common\\zod-validation.pipe.ts": {
+    "mtime": 1781786225.1749077,
+    "ast_hash": "ec0f1955bbc70a35e0acbc62b4913026",
+    "semantic_hash": "ec0f1955bbc70a35e0acbc62b4913026"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\config\\config.module.ts": {
+    "mtime": 1781721446.1896665,
+    "ast_hash": "b22efba448a75c41b036d1ca85cb8d85",
+    "semantic_hash": "b22efba448a75c41b036d1ca85cb8d85"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\config\\env.config.spec.ts": {
+    "mtime": 1781721446.193671,
+    "ast_hash": "c06edb22944423ebfaf023582f6004cd",
+    "semantic_hash": "c06edb22944423ebfaf023582f6004cd"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\config\\env.config.ts": {
+    "mtime": 1781708711.833927,
+    "ast_hash": "e0968b3ab61e4d17dbde60b492052189",
+    "semantic_hash": "e0968b3ab61e4d17dbde60b492052189"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\config\\index.ts": {
+    "mtime": 1781721440.42154,
+    "ast_hash": "eb8dc67d2813df78c7fee533fde408c5",
+    "semantic_hash": "eb8dc67d2813df78c7fee533fde408c5"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\main.ts": {
+    "mtime": 1781809032.0109353,
+    "ast_hash": "35fc289e30f3c3c07df00bc70e03de58",
+    "semantic_hash": "35fc289e30f3c3c07df00bc70e03de58"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\prisma\\index.ts": {
+    "mtime": 1781721592.6528907,
+    "ast_hash": "4e37f1d9691470a8323407b19f746d88",
+    "semantic_hash": "4e37f1d9691470a8323407b19f746d88"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\prisma\\prisma.module.ts": {
+    "mtime": 1781721585.0333166,
+    "ast_hash": "b250f81fdd9523cf43cb2f5586deab10",
+    "semantic_hash": "b250f81fdd9523cf43cb2f5586deab10"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\prisma\\prisma.service.spec.ts": {
+    "mtime": 1781786244.6968982,
+    "ast_hash": "d7622119f17ffdd214a5d749d2a64b6f",
+    "semantic_hash": "d7622119f17ffdd214a5d749d2a64b6f"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\prisma\\prisma.service.ts": {
+    "mtime": 1781722265.249321,
+    "ast_hash": "be6e9fa98c6149c1a7389894921fcbf5",
+    "semantic_hash": "be6e9fa98c6149c1a7389894921fcbf5"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\redis\\index.ts": {
+    "mtime": 1781722326.275007,
+    "ast_hash": "f90522ac6239cb10d886432abd9c70e5",
+    "semantic_hash": "f90522ac6239cb10d886432abd9c70e5"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\redis\\redis.module.ts": {
+    "mtime": 1781722322.8959632,
+    "ast_hash": "cb7fbd180128cc0dfc55540a15011d24",
+    "semantic_hash": "cb7fbd180128cc0dfc55540a15011d24"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\redis\\redis.service.spec.ts": {
+    "mtime": 1781786259.1981776,
+    "ast_hash": "8be0815914df2f33e98e451a6c3ae01b",
+    "semantic_hash": "8be0815914df2f33e98e451a6c3ae01b"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\src\\redis\\redis.service.ts": {
+    "mtime": 1781722315.6612575,
+    "ast_hash": "522087dec1c0f03880d38f7e108be51e",
+    "semantic_hash": "522087dec1c0f03880d38f7e108be51e"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\test\\auth.e2e.spec.ts": {
+    "mtime": 1781809717.5606208,
+    "ast_hash": "3609ccdf8b13c0fd0d6eb5c8dd7072cb",
+    "semantic_hash": "3609ccdf8b13c0fd0d6eb5c8dd7072cb"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\test\\db.ts": {
+    "mtime": 1781723408.9442792,
+    "ast_hash": "3c941cda5a66ba528f091e8c0beaf2d2",
+    "semantic_hash": "3c941cda5a66ba528f091e8c0beaf2d2"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\test\\setup.env.ts": {
+    "mtime": 1781810915.1515534,
+    "ast_hash": "a5cf4056c7185c6c675c3f9e811d8744",
+    "semantic_hash": "a5cf4056c7185c6c675c3f9e811d8744"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\tsconfig.build.json": {
+    "mtime": 1781703733.9988592,
+    "ast_hash": "c0e1c34c97f2a25b66fdbc6ed4ee26f4",
+    "semantic_hash": "c0e1c34c97f2a25b66fdbc6ed4ee26f4"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\tsconfig.json": {
+    "mtime": 1781703733.9988592,
+    "ast_hash": "0a5a95b166f0a12037efe3f4e56adaca",
+    "semantic_hash": "0a5a95b166f0a12037efe3f4e56adaca"
+  },
+  "D:\\portfolioProject_1\\apps\\api\\vitest.config.ts": {
+    "mtime": 1781723883.0852506,
+    "ast_hash": "4d4b31f3f64253a00d0c8fd63d7b7eaf",
+    "semantic_hash": "4d4b31f3f64253a00d0c8fd63d7b7eaf"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\next-env.d.ts": {
+    "mtime": 1781703733.999858,
+    "ast_hash": "b698cdd97fe8e3bd16dcd74899ad7cef",
+    "semantic_hash": "b698cdd97fe8e3bd16dcd74899ad7cef"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\next.config.ts": {
+    "mtime": 1781815892.4696991,
+    "ast_hash": "bbedc70bc5c0ff664d7b54e007f1fc80",
+    "semantic_hash": "bbedc70bc5c0ff664d7b54e007f1fc80"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\package.json": {
+    "mtime": 1781815663.972467,
+    "ast_hash": "c38038864bbae815159294e46647da5d",
+    "semantic_hash": "c38038864bbae815159294e46647da5d"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\postcss.config.mjs": {
+    "mtime": 1781703733.999858,
+    "ast_hash": "35d0b264e19e80614a58b6580c238ee9",
+    "semantic_hash": "35d0b264e19e80614a58b6580c238ee9"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\app\\(auth)\\layout.tsx": {
+    "mtime": 1781816472.5288107,
+    "ast_hash": "2dac211ed2421547469635ece593b04a",
+    "semantic_hash": "2dac211ed2421547469635ece593b04a"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\app\\(auth)\\login\\page.tsx": {
+    "mtime": 1781816482.3512185,
+    "ast_hash": "e2c4bd41daaaa91f1228295f6b147616",
+    "semantic_hash": "e2c4bd41daaaa91f1228295f6b147616"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\app\\(auth)\\register\\page.tsx": {
+    "mtime": 1781816493.0915623,
+    "ast_hash": "9064828ec1f2cab076fa6011c7dfbe22",
+    "semantic_hash": "9064828ec1f2cab076fa6011c7dfbe22"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\app\\(dashboard)\\dashboard\\page.tsx": {
+    "mtime": 1781816884.29124,
+    "ast_hash": "e8721f5029fd9a0ddcfc086df88b54ba",
+    "semantic_hash": "e8721f5029fd9a0ddcfc086df88b54ba"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\app\\(dashboard)\\layout.tsx": {
+    "mtime": 1781816548.297803,
+    "ast_hash": "365e055d96af67b3f3d163ed4e2d09b1",
+    "semantic_hash": "365e055d96af67b3f3d163ed4e2d09b1"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\app\\layout.tsx": {
+    "mtime": 1781816301.64484,
+    "ast_hash": "ddec0431620979f428d413ba8b21e2fa",
+    "semantic_hash": "ddec0431620979f428d413ba8b21e2fa"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\app\\page.tsx": {
+    "mtime": 1781816567.6890907,
+    "ast_hash": "40aa5659b76880f0fb8f6077b09cd466",
+    "semantic_hash": "40aa5659b76880f0fb8f6077b09cd466"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\app\\providers.tsx": {
+    "mtime": 1781816292.50081,
+    "ast_hash": "2b0fc973f6c00a6653e3aa4ba56b74c8",
+    "semantic_hash": "2b0fc973f6c00a6653e3aa4ba56b74c8"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\components\\auth-form.tsx": {
+    "mtime": 1781816440.6383486,
+    "ast_hash": "84d6b3d9f90457a158152b143bb98b31",
+    "semantic_hash": "84d6b3d9f90457a158152b143bb98b31"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\components\\button.tsx": {
+    "mtime": 1781816366.7755394,
+    "ast_hash": "6ba36bc338cf24da8bb1141b76342cf8",
+    "semantic_hash": "6ba36bc338cf24da8bb1141b76342cf8"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\components\\form-field.tsx": {
+    "mtime": 1781816376.4313376,
+    "ast_hash": "38b7da4bafe08cfab27068502afa5126",
+    "semantic_hash": "38b7da4bafe08cfab27068502afa5126"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\lib\\api-client.test.ts": {
+    "mtime": 1781816938.0756705,
+    "ast_hash": "a6a678791d0af55f739d3321790480b2",
+    "semantic_hash": "a6a678791d0af55f739d3321790480b2"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\lib\\api-client.ts": {
+    "mtime": 1781816239.100599,
+    "ast_hash": "f460e8338be34bd141252dfd0c4fe355",
+    "semantic_hash": "f460e8338be34bd141252dfd0c4fe355"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\lib\\api\\auth.test.ts": {
+    "mtime": 1781815978.8569183,
+    "ast_hash": "ded607383be56fb54a07924f056d2ff7",
+    "semantic_hash": "ded607383be56fb54a07924f056d2ff7"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\lib\\api\\auth.ts": {
+    "mtime": 1781816018.647301,
+    "ast_hash": "807ee56d7c52e97024aceb377d703853",
+    "semantic_hash": "807ee56d7c52e97024aceb377d703853"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\lib\\auth\\hooks.ts": {
+    "mtime": 1781816314.0210068,
+    "ast_hash": "8d5e1ba6d177f8d89947e45d49e4779f",
+    "semantic_hash": "8d5e1ba6d177f8d89947e45d49e4779f"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\lib\\auth\\refresh.ts": {
+    "mtime": 1781816865.6558883,
+    "ast_hash": "47cbded7b0f5585e88d1f388fb0de474",
+    "semantic_hash": "47cbded7b0f5585e88d1f388fb0de474"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\lib\\auth\\store.test.ts": {
+    "mtime": 1781816099.6890209,
+    "ast_hash": "6011dff5260776ee67cffab1221c9540",
+    "semantic_hash": "6011dff5260776ee67cffab1221c9540"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\lib\\auth\\store.ts": {
+    "mtime": 1781816064.4006577,
+    "ast_hash": "8b4db3bbc1fbf656848514b760b81d0c",
+    "semantic_hash": "8b4db3bbc1fbf656848514b760b81d0c"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\src\\lib\\query-client.ts": {
+    "mtime": 1781816277.0078955,
+    "ast_hash": "4e6547cf214bbe6ed92ab494f2649f40",
+    "semantic_hash": "4e6547cf214bbe6ed92ab494f2649f40"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\tsconfig.json": {
+    "mtime": 1781703734.0008576,
+    "ast_hash": "95cc62a14479fa039be71dc141db58e1",
+    "semantic_hash": "95cc62a14479fa039be71dc141db58e1"
+  },
+  "D:\\portfolioProject_1\\apps\\web\\vitest.config.ts": {
+    "mtime": 1781815627.819364,
+    "ast_hash": "ed6d21d9c1c7bb146fbf341e90827de9",
+    "semantic_hash": "ed6d21d9c1c7bb146fbf341e90827de9"
+  },
+  "D:\\portfolioProject_1\\eslint.config.mjs": {
+    "mtime": 1781703734.0008576,
+    "ast_hash": "a7c8e46f751997026ec19075d062c4b0",
+    "semantic_hash": "a7c8e46f751997026ec19075d062c4b0"
+  },
+  "D:\\portfolioProject_1\\package.json": {
+    "mtime": 1781708047.8932643,
+    "ast_hash": "c9b1ef9f137c4882d94f469dd6371006",
+    "semantic_hash": "c9b1ef9f137c4882d94f469dd6371006"
+  },
+  "D:\\portfolioProject_1\\packages\\shared\\package.json": {
+    "mtime": 1781722520.8735356,
+    "ast_hash": "9fb05ec470fa72ce129b0f3b28bcb914",
+    "semantic_hash": "9fb05ec470fa72ce129b0f3b28bcb914"
+  },
+  "D:\\portfolioProject_1\\packages\\shared\\src\\auth.spec.ts": {
+    "mtime": 1781808669.383355,
+    "ast_hash": "5cdaeedf4288085765c732e2f039f2f3",
+    "semantic_hash": "5cdaeedf4288085765c732e2f039f2f3"
+  },
+  "D:\\portfolioProject_1\\packages\\shared\\src\\auth.ts": {
+    "mtime": 1781808602.6407852,
+    "ast_hash": "c4fc636fffc6ad99e5cbe77eff6fbe16",
+    "semantic_hash": "c4fc636fffc6ad99e5cbe77eff6fbe16"
+  },
+  "D:\\portfolioProject_1\\packages\\shared\\src\\health.ts": {
+    "mtime": 1781703734.001857,
+    "ast_hash": "462cc97de93f39d23b4fb6f7b88334a4",
+    "semantic_hash": "462cc97de93f39d23b4fb6f7b88334a4"
+  },
+  "D:\\portfolioProject_1\\packages\\shared\\src\\index.ts": {
+    "mtime": 1781722473.3096528,
+    "ast_hash": "596fd547626a76bd46dd71f9d6ddca20",
+    "semantic_hash": "596fd547626a76bd46dd71f9d6ddca20"
+  },
+  "D:\\portfolioProject_1\\packages\\shared\\tsconfig.json": {
+    "mtime": 1781703734.001857,
+    "ast_hash": "6f3a136f542d4028a8fa85280aacdb42",
+    "semantic_hash": "6f3a136f542d4028a8fa85280aacdb42"
+  },
+  "D:\\portfolioProject_1\\packages\\shared\\vitest.config.ts": {
+    "mtime": 1781722494.9815931,
+    "ast_hash": "1e36e4e67441d9a4d893a941d36f5fef",
+    "semantic_hash": "1e36e4e67441d9a4d893a941d36f5fef"
+  },
+  "D:\\portfolioProject_1\\turbo.json": {
+    "mtime": 1781703734.0028577,
+    "ast_hash": "14fd25fac24ab33c89af0d8fbeb2667a",
+    "semantic_hash": "14fd25fac24ab33c89af0d8fbeb2667a"
+  },
+  "D:\\portfolioProject_1\\.github\\workflows\\ci.yml": {
+    "mtime": 1781810926.9215896,
+    "ast_hash": "5fc73f7045561160225b55f2ac18555a",
+    "semantic_hash": "5fc73f7045561160225b55f2ac18555a"
+  },
+  "D:\\portfolioProject_1\\DEVELOPMENT_LOG.md": {
+    "mtime": 1781817043.1082256,
+    "ast_hash": "646067f2c7014b5595a4144ca105c514",
+    "semantic_hash": "646067f2c7014b5595a4144ca105c514"
+  },
+  "D:\\portfolioProject_1\\PROJECT_PLAN.md": {
+    "mtime": 1781684760.3130727,
+    "ast_hash": "b8a89b10653592e834b686cd36874fb0",
+    "semantic_hash": "b8a89b10653592e834b686cd36874fb0"
+  },
+  "D:\\portfolioProject_1\\README.md": {
+    "mtime": 1781704172.4416075,
+    "ast_hash": "ab634b4f4743e381d12cd7ffa4f90f7b",
+    "semantic_hash": "ab634b4f4743e381d12cd7ffa4f90f7b"
+  },
+  "D:\\portfolioProject_1\\docker-compose.test.yml": {
+    "mtime": 1781703734.0008576,
+    "ast_hash": "569a973152bc1db9710c776ba68da06b",
+    "semantic_hash": "569a973152bc1db9710c776ba68da06b"
+  },
+  "D:\\portfolioProject_1\\docker-compose.yml": {
+    "mtime": 1781703734.0008576,
+    "ast_hash": "ae3b9c922caaa6631e42a0224e2ed840",
+    "semantic_hash": "ae3b9c922caaa6631e42a0224e2ed840"
+  },
+  "D:\\portfolioProject_1\\docs\\adr\\0001-tech-stack-versions-2026.md": {
+    "mtime": 1781700113.9099002,
+    "ast_hash": "fa63a674a212812b2467c4712222f303",
+    "semantic_hash": "fa63a674a212812b2467c4712222f303"
+  },
+  "D:\\portfolioProject_1\\docs\\adr\\0002-refresh-rotation-httponly-cookie.md": {
+    "mtime": 1781810670.0053136,
+    "ast_hash": "ce201db5c46fd5caa80148321c661c1c",
+    "semantic_hash": "ce201db5c46fd5caa80148321c661c1c"
+  },
+  "D:\\portfolioProject_1\\docs\\progress.md": {
+    "mtime": 1781817080.7127385,
+    "ast_hash": "d2db657b22dc8d755bc0b24972e0aebc",
+    "semantic_hash": "d2db657b22dc8d755bc0b24972e0aebc"
+  },
+  "D:\\portfolioProject_1\\docs\\superpowers\\plans\\2026-06-17-phase-0-foundation.md": {
+    "mtime": 1781700241.6772523,
+    "ast_hash": "145bbe35ccd87571f281c40bcd38bd6b",
+    "semantic_hash": "145bbe35ccd87571f281c40bcd38bd6b"
+  },
+  "D:\\portfolioProject_1\\docs\\superpowers\\plans\\2026-06-17-phase-1a-auth-backend.md": {
+    "mtime": 1781706134.1183093,
+    "ast_hash": "b48d4da9ed34ba882d88d3a96a4b9492",
+    "semantic_hash": "b48d4da9ed34ba882d88d3a96a4b9492"
+  },
+  "D:\\portfolioProject_1\\docs\\superpowers\\plans\\2026-06-19-phase-1b-auth-frontend.md": {
+    "mtime": 1781815515.43051,
+    "ast_hash": "46ef2976c1f616f90a05d5f5e16a6912",
+    "semantic_hash": "46ef2976c1f616f90a05d5f5e16a6912"
+  },
+  "D:\\portfolioProject_1\\docs\\superpowers\\specs\\2026-06-17-execution-process-design.md": {
+    "mtime": 1781699788.3697615,
+    "ast_hash": "a9779b1ce741ab2db99c837625c102df",
+    "semantic_hash": "a9779b1ce741ab2db99c837625c102df"
+  },
+  "D:\\portfolioProject_1\\docs\\superpowers\\specs\\2026-06-17-phase-1-authentication-design.md": {
+    "mtime": 1781704966.8805616,
+    "ast_hash": "7fe9b4d07df0b2a7b961a2471c168452",
+    "semantic_hash": "7fe9b4d07df0b2a7b961a2471c168452"
+  },
+  "D:\\portfolioProject_1\\pnpm-workspace.yaml": {
+    "mtime": 1781703734.0028577,
+    "ast_hash": "62cf619ba44cea403e3ab3ed2f69673b",
+    "semantic_hash": "62cf619ba44cea403e3ab3ed2f69673b"
+  }
+}
