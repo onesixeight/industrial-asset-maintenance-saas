@@ -9,6 +9,7 @@ import { ConfigModule } from "./config";
 import { DashboardModule } from "./dashboard/dashboard.module";
 import { InspectionsModule } from "./inspections/inspections.module";
 import { LocationsModule } from "./locations/locations.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { PartsModule } from "./parts/parts.module";
 import { PrismaModule } from "./prisma";
 import { ReportsModule } from "./reports/reports.module";
@@ -34,6 +35,7 @@ import { WorkOrdersModule } from "./work-orders/work-orders.module";
     PartsModule,
     DashboardModule,
     ReportsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [
