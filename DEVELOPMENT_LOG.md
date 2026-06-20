@@ -317,3 +317,35 @@ the end of each phase. Mirrors the process defined in
 - Real-time dashboard (websockets / SSE) → unscheduled.
 
 **Next:** Phase 8 — Notifications (read/mark-read service + UI, 60s polling; consumes the low-stock Notifications Phase 6 already produces).
+
+---
+
+## 2026-06-21 — Phase 8: Notifications
+
+**Done:**
+- `packages/shared/src/notifications.ts`: `notificationResponseSchema`/`NotificationResponse` (id, userId, title, message, read, createdAt ISO), `notificationListQuerySchema` (extends listQuerySchema — page/limit only, no search), `unreadCountResponseSchema` (`{ count }`), `markAllReadResponseSchema` (`{ updated }`). Re-exported from `index.ts`.
+- Backend `NotificationsModule` (controller + service): per-user consumer. `GET /notifications` (paginated, newest first, scoped by `userId`), `GET /notifications/unread-count` (`{ count }` — the 60s-poll endpoint), `PATCH /notifications/:id/read` (get-then-update), `PATCH /notifications/read-all` (`updateMany`, returns count). **Static routes (`unread-count`, `read-all`) declared before `:id`** so Nest doesn't route them as ids (Phase 3/5 ordering rule).
+- **Per-user, not per-tenant.** Notifications are owned by a user; the service scopes by `userId === user.sub` from the JWT, with no company filter. Id-keyed queries include `userId` in the `where` → another user's notification id returns 404 (no existence leak / IDOR, e2e #5).
+- `markAllRead` idempotent via `updateMany` — a second call returns `{ updated: 0 }`, no error.
+- Tests: **7 unit** (list scope+pagination, unreadCount, markRead happy + 404 IDOR, markAllRead count + idempotency, ISO mapping) + **8 critical-path e2e** (real Postgres): empty list + count 0, the **Phase 6→8 loop** (low-stock crossing creates a notification the manager sees + unread-count increments), mark-one-read flips read + decrements count, mark-all-read zeroes count + returns update count, IDOR 404 (B cannot read A's notification, A's stays unread), unauthenticated 401, static-route/no-id-collision, list scoped to requesting user. The Phase 6→8 e2e required seeding the manager with `mustChangePassword: false` and the right password (caught the force-change-password gate from Phase 1a).
+- Frontend: `lib/api/notifications.ts`. `components/notifications-menu.tsx` — bell button + numeric unread badge (red pill, "9+" overflow), dropdown panel listing the 10 most recent (title + message + timestamp, unread rows tinted), per-row "Read" + "Mark all read". Two queries: `unread-count` with **`refetchInterval: 60_000`** (exec spec §3.6); `list` fetched on dropdown open only (no interval). Mounted in the `(dashboard)` layout header — visible on every dashboard page, not just `/dashboard`.
+
+**Decisions:**
+- **Polling, not websockets/SSE (ADR 0006).** Exec spec §3.6 fixes notification polling to `refetchInterval: 60s` via TanStack Query. A real-time socket layer is explicitly out of scope; 1 request / 60s / active user is negligible load against an indexed `userId` count.
+- **Notifications are user-owned, not company-owned.** The schema's required `userId` (no company-broadcast) plus Phase 6's per-manager fan-out makes per-user scoping the natural model. The service has no company filter; a viewer only ever sees their own notifications.
+- **The read service is producer-agnostic.** Phase 6's low-stock trigger is the only producer today; this module only reads + marks read. Future producers (WO assignment, due-date warnings) just insert `Notification` rows and they'll surface here unchanged.
+- **60s polling on the count query only.** The list query runs when the dropdown opens (user-driven), not on an interval — avoids pulling full notification bodies every minute when the bell is closed.
+- **`markAllRead` returns `{ updated }`, not the rows.** `updateMany` returns a count; the client invalidates both queries and the badge re-renders from the fresh `unread-count`. No need to return the touched rows.
+
+**Verified (real output, not assumed):**
+- `pnpm lint` — 3 workspaces pass.
+- `pnpm typecheck` — 3 workspaces pass.
+- `pnpm test` — api **230** + shared **16** + web **11** = 257 passed.
+- `pnpm build` — api + web.
+
+**Deferred / out of Phase 8:**
+- Real-time push (SSE/WebSocket) → unscheduled (exec spec mandates 60s polling).
+- Additional producers (WO assignment, due-date) → future.
+- Email/digest delivery → unscheduled (YAGNI).
+
+**Next:** Phase 9 — E2E + polish (Playwright critical paths, Swagger, error/loading states, edge cases).
