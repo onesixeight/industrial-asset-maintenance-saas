@@ -248,3 +248,37 @@ the end of each phase. Mirrors the process defined in
 - Auto-create from schedule, re-running/superseding → future.
 
 **Next:** Phase 6 — Parts inventory (Part + WorkOrderPart transactional consumption, low-stock, restock).
+
+---
+
+## 2026-06-21 — Phase 6: Parts Inventory
+
+**Done:**
+- `packages/shared/src/parts.ts`: Zod schemas — `partResponseSchema` (temporal as ISO), `createPartRequestSchema` (name/sku/description?/quantity≥0/minQuantity≥0), `updatePartRequestSchema` (partial), `partFiltersSchema` (extends `listQuerySchema` + `lowStock`), `workOrderPartResponseSchema` (nested `part`), `consumePartRequestSchema` (`{ partId, quantity≥1 }`). Re-exported from `index.ts`. **Refactor:** extracted `booleanQuery` from `inspections.ts` into `reference.ts` (single source) — both inspections and parts now reuse it.
+- Backend `PartsModule` (controller + service + `to-part-response.ts` mapper): multi-tenant CRUD. `list` supports search (name OR sku) + a `lowStock` filter (Prisma can't compare two columns in `where`, so applied in memory over the search match — parts lists per company are small). SKU is `@@unique([companyId, sku])` — a collision surfaces as Prisma P2002 and is mapped to 409 (Phase 1a pattern). Cross-tenant → 404.
+- Backend `WorkOrderPartsService` (lives in work-orders module): transactional consumption + restock. **`consume`** runs in `prisma.$transaction`: load WO (tenant-scoped) → 404; technician-not-owner → 403; load Part → 404; insufficient stock (`part.quantity < qty`) → 409; decrement `Part.quantity`; upsert `WorkOrderPart` (accumulates if a line already exists via `@@unique([workOrderId, partId])`); low-stock trigger on the downward crossing only. **`restock`** (`DELETE`) runs in `$transaction`: restore `Part.quantity`, delete the line — never fires low-stock (restock only raises quantity). The critical-path test (exec spec §3.1): consume decrements stock transactionally; restock restores; low-stock triggers on the crossing consumption.
+- **Low-stock trigger (bounded):** fires iff `oldQuantity > minQuantity && newQuantity <= minQuantity` — never when already below min (no spam), never on restock. Creates one `Notification` per admin/manager in the company via direct `tx.notification.createMany` inside the transaction (so it rolls back with the consumption). `Notification.userId` is required by schema, hence the per-user fan-out. The full Notification read/mark-read service lands in Phase 8 — see ADR 0004.
+- RBAC: parts CRUD reads any-authed, writes admin/manager; consumption has **no class-level role gate** (the service enforces technician-ownership OR admin/manager — same pattern as Phase 4 WO transitions, since RolesGuard can't express "technician if owner"); restock (DELETE) admin/manager. Endpoints wired onto `WorkOrdersController` (`GET/POST /work-orders/:id/parts`, `DELETE /work-orders/:id/parts/:partId`) — Part CRUD is its own `/parts` controller.
+- Tests: **23 unit** (10 PartsService — CRUD, cross-tenant 404, SKU P2002→409, lowStock in-memory filter; 13 WorkOrderPartsService — consume decrement, accumulation, 409 insufficient, tech-not-owner 403, cross-tenant 404, low-stock crossing fires once, no-fire already-low, restock restores, no-fire on restock, manager can consume unowned, list tenant-scoped) + **16 critical-path e2e** (real Postgres): parts CRUD, dup sku 409, cross-tenant 404, delete→404, tech 403 on create, consume decrements + creates line, insufficient 409 (qty unchanged), restock restores + clears line, tech-not-owner consume 403, tech-owner consume 200, lowStock filter, low-stock crossing creates a manager Notification, no-spam when already low, accumulation, viewer restock 403.
+- Frontend: `lib/api/parts.ts` (`partsApi` + `workOrderPartsApi`). Pages: `/parts` (search + lowStock filter + stock badge: OK/Low/Out), `/parts/new` (create form, 409 handling), `/parts/[id]` (edit + delete). WO detail page (`/work-orders/[id]`) extended with a "Parts consumed" section (list of consumed lines + qty, Consume form with part picker + qty for manager/owner, Restock button for managers). Sidebar: + "Parts".
+
+**Decisions:**
+- **Bounded low-stock trigger** (user-confirmed; ADR 0004). Phase 8 owns Notifications end-to-end (read/unread, UI, real-time). Implementing the full Notification service here would inflate Phase 6 scope and delay the critical-path parts work. We insert Notification rows transactionally now; Phase 8 adds the read service that surfaces them.
+- **Low-stock fires on the crossing, not the state.** `oldQuantity > min && newQuantity <= min`. This prevents notification spam (consuming 1→0→-1 of an already-low part would otherwise fire repeatedly) and matches exec spec §3.1's wording ("triggers on the crossing consumption").
+- **Consumption accumulation via `@@unique` upsert.** Consuming the same part twice on a WO adds to the existing line quantity rather than creating duplicates — the unique constraint makes this the natural behavior.
+- **Restock = `DELETE` the line + restore quantity.** No partial restock UI/endpoint (YAGNI); managers remove the full consumed line and stock is restored. This is reversible and audit-simple.
+- **`lowStock` filter applied in memory.** Prisma cannot express `quantity <= minQuantity` (two-column comparison) in a `where` clause. Parts lists per company are bounded (hundreds), so fetching the search match then filtering/slicing in the service is correct and keeps the query honest.
+- **Technician-ownership check is service-layer** (Phase 4 pattern repeated). "Technician may consume only on their assigned WO" can't be a RolesGuard rule, so the service reads `wo.assignedToId === user.sub`.
+
+**Verified (real output, not assumed):**
+- `pnpm lint` — 3 workspaces pass.
+- `pnpm typecheck` — 3 workspaces pass.
+- `pnpm test` — api **182** + shared **16** + web **11** = 209 passed.
+- `pnpm build` — api + web; web emits `/parts`, `/parts/[id]`, `/parts/new` (all ƒ dynamic under the dashboard cookie guard).
+
+**Deferred / out of Phase 6:**
+- Notification read/mark-read service + UI → Phase 8.
+- Parts usage reports / low-stock dashboard widget → Phase 7.
+- Supplier/PO management → unscheduled (YAGNI).
+
+**Next:** Phase 7 — Dashboard + reports (MTTR, asset health, parts usage, CSV export).
