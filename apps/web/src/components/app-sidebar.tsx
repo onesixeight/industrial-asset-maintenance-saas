@@ -14,6 +14,8 @@ export function AppSidebar() {
 
   const links: { href: string; label: string; adminOnly?: boolean }[] = [
     { href: "/dashboard", label: "Dashboard" },
+    { href: "/assets", label: "Assets" },
+    { href: "/assets/scan", label: "Scan QR" },
     { href: "/locations", label: "Locations" },
     { href: "/categories", label: "Categories" },
     { href: "/users", label: "Users", adminOnly: true },
