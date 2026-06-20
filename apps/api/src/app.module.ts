@@ -10,6 +10,7 @@ import { LocationsModule } from "./locations/locations.module";
 import { PrismaModule } from "./prisma";
 import { RedisModule } from "./redis";
 import { UsersModule } from "./users/users.module";
+import { WorkOrdersModule } from "./work-orders/work-orders.module";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { UsersModule } from "./users/users.module";
     CategoriesModule,
     UsersModule,
     AssetsModule,
+    WorkOrdersModule,
   ],
   controllers: [AppController],
   providers: [
