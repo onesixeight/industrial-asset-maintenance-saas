@@ -110,6 +110,7 @@ export class AssetsController {
   @Post(":id/qr/rotate")
   @UseGuards(RolesGuard)
   @Roles("admin", "manager")
+  @HttpCode(HttpStatus.OK)
   rotateQr(@CurrentUser() user: JwtPayload, @Param("id") id: string) {
     return this.assets.rotateQr(id, user.companyId);
   }
