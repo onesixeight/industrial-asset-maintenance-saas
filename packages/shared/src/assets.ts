@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { listQuerySchema } from "./reference";
 
-export const assetStatusSchema = z.enum(["active", "maintenance", "retired", "lost"]);
+export const assetStatusSchema = z.enum(["active", "maintenance", "retired"]);
 export type AssetStatus = z.infer<typeof assetStatusSchema>;
 
 export const assetFiltersSchema = listQuerySchema.extend({
