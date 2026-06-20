@@ -5,3 +5,4 @@ export * from "./assets";
 export * from "./work-orders";
 export * from "./inspections";
 export * from "./parts";
+export * from "./dashboard";

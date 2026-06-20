@@ -6,10 +6,12 @@ import { AssetsModule } from "./assets/assets.module";
 import { AuthModule } from "./auth/auth.module";
 import { CategoriesModule } from "./categories/categories.module";
 import { ConfigModule } from "./config";
+import { DashboardModule } from "./dashboard/dashboard.module";
 import { InspectionsModule } from "./inspections/inspections.module";
 import { LocationsModule } from "./locations/locations.module";
 import { PartsModule } from "./parts/parts.module";
 import { PrismaModule } from "./prisma";
+import { ReportsModule } from "./reports/reports.module";
 import { RedisModule } from "./redis";
 import { UsersModule } from "./users/users.module";
 import { WorkOrdersModule } from "./work-orders/work-orders.module";
@@ -30,6 +32,8 @@ import { WorkOrdersModule } from "./work-orders/work-orders.module";
     WorkOrdersModule,
     InspectionsModule,
     PartsModule,
+    DashboardModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [
