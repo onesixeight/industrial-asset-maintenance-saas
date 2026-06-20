@@ -8,7 +8,7 @@ Tracker mirrors the roadmap in
 | 0 | Foundation | ✅ Complete |
 | 1 | Authentication (JWT `jti`, refresh + Redis revocation, throttler, roles/guard) | ✅ Complete (1a backend + 1b frontend) |
 | 2 | Reference data (locations, categories, users) | ✅ Complete |
-| 3 | Assets + QR codes | ⬜ Pending |
+| 3 | Assets + QR codes | ✅ Complete |
 | 4 | Work orders | ⬜ Pending |
 | 5 | Inspections | ⬜ Pending |
 | 6 | Parts inventory | ⬜ Pending |
@@ -26,6 +26,7 @@ tests **within its phase** (not deferred to Phase 9):
 - [x] **Phase 1a (backend)** — register (tx Company+admin), login, refresh (rotation + Redis denylist), logout, me, throttle 429, RolesGuard `/auth/admin-probe` (200 admin / 403 viewer). 11/11 critical-path tests pass on real PostgreSQL.
 - [x] **Phase 1b (frontend)** — login/register pages (RHF + shared Zod), Zustand in-memory access-token store, httpOnly refresh cookie, silent refresh on load + 401 retry, `(dashboard)` Server Component guard, logout. Browser flow register → dashboard → reload (silent refresh) → logout → login.
 - [x] **Phase 2** — locations/categories/users CRUD (multi-tenant, delete guards), temp-password + force-change flow, RBAC (reference writes admin/manager; role-change admin-only). 10/10 critical-path e2e tests pass on real PostgreSQL.
+- [x] **Phase 3** — assets CRUD (multi-tenant, filtered list), opaque-token QR generation/scan/rotation, delete guard (work orders/inspections), RBAC (read+scan any authed; write+gen+rotate admin/manager). 10/10 critical-path e2e tests pass on real PostgreSQL.
 - [ ] **Phase 4** — work-order status transitions (reject invalid)
 - [ ] **Phase 5** — inspection `passed` = true only if all items passed
 - [ ] **Phase 6** — parts consumption (transactional decrement), restock, low-stock trigger

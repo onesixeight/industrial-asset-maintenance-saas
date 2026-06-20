@@ -152,3 +152,36 @@ the end of each phase. Mirrors the process defined in
 - Audit log of who changed which user's role → future.
 
 **Next:** Phase 3 — Assets + QR codes (asset CRUD, opaque-token QR generation, QR lookup, UI).
+
+---
+
+## 2026-06-20 — Phase 3: Assets + QR Codes
+
+**Done:**
+- `packages/shared/src/assets.ts`: Zod schemas — `assetStatusSchema` (active/maintenance/retired — aligned to the Prisma enum; the spec draft listed `lost`, which the init migration never had, so dropped), `assetFiltersSchema` (extends Phase 2 `listQuerySchema` with status/locationId/categoryId), `createAssetRequestSchema`, `updateAssetRequestSchema` (partial), `assetResponseSchema`. Re-exported from `index.ts`.
+- Backend `AssetsModule` (controller + service): multi-tenant CRUD (list with filters + pagination, get, create, update, delete) reusing Phase 2 conventions (per-service `companyId`, cross-tenant → 404, per-route `ZodValidationPipe`, `JwtAuthGuard` + `RolesGuard`). `locationId`/`categoryId` validated to belong to the caller's company on create/update (foreign-tenant FK → 400). Delete guard: 409 if any WorkOrder or Inspection references the asset. Prisma `Date` fields mapped to ISO strings in the response (`toAssetResponse`) to match the shared schema.
+- **Opaque QR lifecycle**: tokens are `randomBytes(24).toString("base64url")` (192-bit, URL-safe) generated server-side on create — never accepted from the client. `GET /assets/:id/qr` renders the QR as `image/svg+xml` (via the `qrcode` lib) encoding the public scan URL `${PUBLIC_SCAN_BASE}/assets/qr/:token`. `GET /assets/qr/:token` (scan) resolves token→asset (authed; cross-tenant → 404). `POST /assets/:id/qr/rotate` overwrites the token (the old printed sticker's token then 404s). On the astronomically-unlikely `qrCode` P2002 collision at create, the service retries once with fresh entropy.
+- RBAC: list/get/scan open to any authenticated user; create/update/delete + QR SVG + rotate require admin/manager. Route ordering: `GET qr/:token` declared before `GET :id` so the static `qr` segment isn't swallowed by the param.
+- `PUBLIC_SCAN_BASE` env (Zod-validated, default `http://localhost:3000`) — the origin a scanned QR opens; prod sets the deployed web URL.
+- Tests: 10 critical-path e2e (real Postgres) — CRUD + scoped list, foreign-FK 400, cross-tenant 404, QR SVG content-type + `<svg`, scan resolve + unknown/cross-tenant 404, rotate invalidation, delete guard 409, RBAC split (viewer write 403 / scan 200), filtered list, qrCode read-only on PATCH — + 8 unit tests on the service (mock Prisma+Config). `test/assets.e2e.spec.ts` resets `ThrottlerStorage` per test (Phase 2 fix).
+- Frontend: `lib/api/assets.ts` (typed calls via `apiJson`/`apiFetch`; `getQrSvg` returns SVG text). Primitives: `Select`, `QrCodeDisplay` (embeds the trusted SVG inline + Download SVG + Rotate for admin/manager), `QrScanner` (wraps `html5-qrcode`, starts/stops camera, decodes the scan URL). Pages: `/assets` (DataTable + status/location/category/search filters), `/assets/new` (RHF + Zod form), `/assets/[id]` (detail + QR display + delete with 409 surfaced), `/assets/scan` (camera → `assetsApi.scan` → redirect). Sidebar: + "Assets" + "Scan QR".
+
+**Decisions:**
+- **Opaque base64url token, not the asset UUID** (PROJECT_PLAN §8): a leaked QR grants access to one asset, not the list; only the server resolves token→asset. Rotation = overwrite (no denylist/TTL — the token is a stable pointer, not a session).
+- **QR rendered as SVG server-side** (vector, prints crisply). The web embeds the trusted SVG inline (`dangerouslySetInnerHTML` — source is our own authenticated api, not user input).
+- **Scan open to any authenticated user**: it's the everyday action for technicians/inspectors; the token is still scoped to the caller's company (cross-tenant token → 404).
+- **Delete guard on WorkOrder + Inspection** (not just reference-data FKs): protects the audit history an asset accumulates once work is done on it.
+- **AssetStatus enum = active/maintenance/retired** (3 values): the init migration never had `lost`; the shared schema was corrected to match Prisma rather than invent a value the DB rejects.
+
+**Verified (real output, not assumed):**
+- `pnpm lint` — 3 workspaces pass.
+- `pnpm typecheck` — 3 workspaces pass.
+- `pnpm test` — api **97** + shared **16** + web **11** = 124 passed.
+- `pnpm build` — api + web; web emits `/assets`, `/assets/[id]`, `/assets/new`, `/assets/scan` (all ƒ dynamic under the dashboard cookie guard).
+
+**Deferred / out of Phase 3:**
+- Bulk asset import, asset photos/attachments, asset history/timeline view → later / Phase 7.
+- QR printing layout/PDF → SVG download is enough for now.
+- Camera-based scan is HTTPS-gated in prod (secure context); documented for Phase 10 deployment.
+
+**Next:** Phase 4 — Work orders (WO CRUD, status-transition validation, assign, UI).
