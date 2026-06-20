@@ -12,12 +12,6 @@ import type {
 import { PrismaService } from "../prisma";
 import { toPartResponse } from "../parts/to-part-response";
 
-type WorkOrderRow = {
-  id: string;
-  companyId: string;
-  assignedToId: string | null;
-};
-
 type PartRow = {
   id: string;
   name: string;
