@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { AppController } from "./app.controller";
+import { AssetsModule } from "./assets/assets.module";
 import { AuthModule } from "./auth/auth.module";
 import { CategoriesModule } from "./categories/categories.module";
 import { ConfigModule } from "./config";
@@ -22,6 +23,7 @@ import { UsersModule } from "./users/users.module";
     LocationsModule,
     CategoriesModule,
     UsersModule,
+    AssetsModule,
   ],
   controllers: [AppController],
   providers: [
