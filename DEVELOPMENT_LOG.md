@@ -185,3 +185,34 @@ the end of each phase. Mirrors the process defined in
 - Camera-based scan is HTTPS-gated in prod (secure context); documented for Phase 10 deployment.
 
 **Next:** Phase 4 — Work orders (WO CRUD, status-transition validation, assign, UI).
+
+---
+
+## 2026-06-20 — Phase 4: Work Orders
+
+**Done:**
+- `packages/shared/src/work-orders.ts`: Zod schemas — `workOrderTypeSchema`, `workOrderStatusSchema` (open/in_progress/on_hold/completed/cancelled), `prioritySchema`, `workOrderFiltersSchema` (extends Phase 2 `listQuerySchema` with status/priority/assetId/assignedToId), `createWorkOrderRequestSchema`, `updateWorkOrderRequestSchema` (partial, no status), `transitionWorkOrderRequestSchema`, `workOrderResponseSchema` (temporal as ISO strings / null). Re-exported from `index.ts`. (Removed a `.default("medium")` on `priority` — it conflicted with React Hook Form's typing; the form always sends priority, and the api defaults at the Prisma layer.)
+- Backend `WorkOrdersModule` (controller + service + pure `transitions.ts` map): multi-tenant CRUD (list filtered + excludes soft-deleted, get, create, update fields — NOT status, soft-delete sets `deletedAt`). `assetId`/`assignedToId` validated to the caller's company (foreign-tenant FK → 400). Cross-tenant by id → 404. Prisma `Date`→ISO via `toWorkOrderResponse` (Phase 3 pattern).
+- **Validated status transitions**: a pure `ALLOWED_TRANSITIONS` map + `canTransition(from,to)` in `transitions.ts`, unit-tested directly (6 tests). Graph: `open→in_progress→completed`; `in_progress↔on_hold`; `{open,in_progress,on_hold}→cancelled`; `completed`/`cancelled` terminal. `completedAt` auto-set on `completed`. Invalid transition → 400 naming the statuses (PROJECT_PLAN §497 satisfied: `open→completed` rejected). This is the critical-path test (exec spec §3.1).
+- **Transition ownership RBAC**: the `PATCH /:id/status` route is NOT class-role-gated (RolesGuard can't express "technician if owner") — the service enforces: technician may transition only a WO assigned to them (`assignedToId === user.sub`), else 403; manager/admin any. Field writes (create/update) and soft-delete require admin/manager.
+- Tests: 10 critical-path e2e (real Postgres) — lifecycle + soft-delete, valid transition chain + completedAt, `open→completed`→400, terminal states→400, technician-ownership 403/200, viewer RBAC, foreign-FK 400, cross-tenant 404, filtered list, soft-delete excluded from list+get — + 8 service unit tests + 6 transition unit tests. `test/work-orders.e2e.spec.ts` resets ThrottlerStorage per test.
+- Frontend: `lib/api/work-orders.ts`, `lib/work-orders/transitions.ts` (client mirror of the api map for rendering buttons), `StatusBadge` (colored pill per status). Pages: `/work-orders` (DataTable + status/priority/asset/assignee/search filters), `/work-orders/new` (RHF + Zod form), `/work-orders/[id]` (detail + `<StatusBadge>` + transition buttons derived from the current status + assign dropdown + soft-delete). Sidebar: + "Work orders".
+
+**Decisions:**
+- **Parts endpoints deferred to Phase 6.** `GET/POST/DELETE /work-orders/:id/parts` need the active `Part` inventory model + transactional consumption — the core of Phase 6. Shipping WO lifecycle now without parts keeps the phase focused; the controller is ready to add the routes later.
+- **Transition graph is data, not scattered if/else.** `transitions.ts` is a pure map + helper, unit-tested in isolation; the critical-path e2e reads almost identically to the unit test. Adding/removing a transition is a one-line data change + a test.
+- **Soft-delete only** (PROJECT_PLAN §491, §161 audit-friendly): `deletedAt` set, never hard-delete; list/get exclude deleted rows. Phase 6's parts endpoints will filter `deletedAt: null` where it matters.
+- **Technician-ownership check is service-layer, not RolesGuard.** "Technician may transition only their assigned WO" can't be expressed by a role guard, so the service reads `wo.assignedToId` vs `user.sub`. Manager/admin bypass the check.
+
+**Verified (real output, not assumed):**
+- `pnpm lint` — 3 workspaces pass.
+- `pnpm typecheck` — 3 workspaces pass.
+- `pnpm test` — api **121** + shared **16** + web **11** = 148 passed.
+- `pnpm build` — api + web; web emits `/work-orders`, `/work-orders/[id]`, `/work-orders/new` (all ƒ dynamic under the dashboard cookie guard).
+
+**Deferred / out of Phase 4:**
+- Parts consumption endpoints → Phase 6.
+- WO CSV export, stats/trends → Phase 7.
+- Notifications on assignment/due-date → Phase 8.
+
+**Next:** Phase 5 — Inspections (templates + inspection, dynamic checklist, `passed` logic, QR link).
