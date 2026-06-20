@@ -31,7 +31,7 @@ export const createWorkOrderRequestSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   type: workOrderTypeSchema,
-  priority: prioritySchema.default("medium"),
+  priority: prioritySchema,
   assetId: z.string().uuid(),
   assignedToId: z.string().uuid().nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),

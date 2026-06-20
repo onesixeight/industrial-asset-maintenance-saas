@@ -16,6 +16,7 @@ export function AppSidebar() {
     { href: "/dashboard", label: "Dashboard" },
     { href: "/assets", label: "Assets" },
     { href: "/assets/scan", label: "Scan QR" },
+    { href: "/work-orders", label: "Work orders" },
     { href: "/locations", label: "Locations" },
     { href: "/categories", label: "Categories" },
     { href: "/users", label: "Users", adminOnly: true },
