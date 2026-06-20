@@ -12,7 +12,7 @@ Tracker mirrors the roadmap in
 | 4 | Work orders | ✅ Complete |
 | 5 | Inspections | ✅ Complete |
 | 6 | Parts inventory | ✅ Complete |
-| 7 | Dashboard + reports | ⬜ Pending |
+| 7 | Dashboard + reports | ✅ Complete |
 | 8 | Notifications | ⬜ Pending |
 | 9 | E2E + polish | ⬜ Pending |
 | 10 | Deployment + docs | ⬜ Pending |
@@ -30,6 +30,7 @@ tests **within its phase** (not deferred to Phase 9):
 - [x] **Phase 4** — work-order CRUD (multi-tenant, soft-delete), validated status transitions (open→completed rejected; terminal states; the §497 rule), technician-ownership of transitions, RBAC. 10/10 critical-path e2e tests pass on real PostgreSQL.
 - [x] **Phase 5** — inspection templates (pass_fail items), submit with server-computed `passed` (all-pass→true, one-fail→false), RBAC (submit technician+; templates manager+), delete guard. 10/10 critical-path e2e tests pass on real PostgreSQL.
 - [x] **Phase 6** — parts CRUD (multi-tenant, SKU uniqueness), transactional consumption (decrement + WorkOrderPart upsert in one `$transaction`), restock restores quantity, low-stock trigger fires only on the downward threshold crossing (no spam), technician-ownership of consumption, RBAC. 16/16 critical-path e2e + 23 unit tests pass on real PostgreSQL.
+- [x] **Phase 7** — dashboard aggregates (`/dashboard/stats` KPI cards, `/dashboard/trends` daily series + MTTR) and synchronous CSV report export (`/reports/work-orders.csv`, RFC 4180 escaping), all tenant-scoped. 10/10 critical-path e2e + 18 unit tests pass on real PostgreSQL.
 
 ## Coverage policy
 

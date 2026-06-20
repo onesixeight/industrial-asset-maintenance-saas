@@ -282,3 +282,38 @@ the end of each phase. Mirrors the process defined in
 - Supplier/PO management → unscheduled (YAGNI).
 
 **Next:** Phase 7 — Dashboard + reports (MTTR, asset health, parts usage, CSV export).
+
+---
+
+## 2026-06-21 — Phase 7: Dashboard + Reports
+
+**Done:**
+- `packages/shared/src/dashboard.ts`: response types — `statsResponseSchema`/`StatsResponse` (nested workOrders/assets/inspections/parts), `trendsQuerySchema` (`days` 1–365 default 30), `trendPointSchema`/`TrendPoint`, `trendsResponseSchema`/`TrendsResponse` (`mttrHours: number | null`). Re-exported from `index.ts`.
+- Backend `DashboardModule` (controller + service + pure `mttr.ts`): read-only tenant-scoped aggregates.
+  - `GET /dashboard/stats`: WO counts by status via `groupBy`, `overdue` (non-terminal, `dueDate < now`), asset total + maintenance, inspections last 30 days + passed + `passRate` (null when 0), parts `lowStock`/`outOfStock` (in-memory — Prisma can't compare columns, Phase 6 pattern).
+  - `GET /dashboard/trends?days=`: windowed daily series (`woCreated`/`woCompleted`/`inspections`) bucketed by UTC `YYYY-MM-DD`, plus `mttrHours` via the pure `computeMttr` helper (mean `completedAt − createdAt` in hours over completed WOs; null when none).
+- Backend `ReportsModule`: `GET /reports/work-orders.csv` — synchronous CSV export (RFC 4180: comma/quote/newline escaping via `escapeCsvField`, CRLF line endings, doubled embedded quotes). `Content-Type: text/csv` + `Content-Disposition: attachment; filename="work-orders.csv"`. Tenant-scoped, excludes soft-deleted, includes asset name + assignee email.
+- RBAC: both endpoints any-authenticated; everything scoped by `user.companyId`. Nothing to write-gate.
+- Tests: **18 unit** (5 `computeMttr` pure — null/empty, single, excludes incomplete, averages, fractional; 8 `DashboardService` — status map, passRate null/ratio, lowStock/outOfStock split, tenant scope, trend bucketing, MTTR delegation, empty window; 5 `ReportsService`/`toCsv`/`escapeCsvField` — null/undefined, plain, comma, quote-doubling, newline, header-only, row serialization) + **10 critical-path e2e** (real Postgres): empty-company zeros, seeded counts, unauthenticated 401, cross-tenant isolation, trend bucketing, MTTR reflects a seeded 10h-old completed WO, days validation 400, CSV 200 + content-type + disposition + body, CSV escaping (comma+quote), CSV tenant-scoped.
+- Frontend: rewrote the `/dashboard` placeholder (the "Full UI lands in Phase 7" stub is gone). KPI card grid (Open/In progress/On hold/Overdue WOs, 30-day inspections + pass rate, assets in maintenance %, low/out-of-stock parts), a 30-day WO-created bar chart (div-based, no chart lib — hand-rolled-primatives decision preserved), MTTR readout, and an "Export work orders (CSV)" button. `lib/api/dashboard.ts` (`dashboardApi.stats/trends`), `lib/api/reports.ts` (`downloadWorkOrdersCsv` — fetch+blob+object-URL download since `<a href>` can't attach the bearer token).
+
+**Decisions:**
+- **Defer BullMQ + R2 (ADR 0005).** The exec spec lists "BullMQ reports, R2" for Phase 7. At portfolio-scale data volume (hundreds of WOs per tenant) a synchronous CSV generator runs in milliseconds; a job queue + object store + status polling would be significant infra for no user-visible benefit. Synchronous generation is the right-sized choice; documented as an ADR for reviewers.
+- **MTTR is a pure function.** `computeMttr(items)` is extracted to `mttr.ts` and unit-tested directly — the service delegates to it. Keeps the time-arithmetic testable without a database.
+- **Trend buckets use UTC `YYYY-MM-DD`.** Stable regardless of server timezone; `toISOString().slice(0,10)`. Tests use fixed `Z` dates.
+- **CSV is RFC 4180-correct, not a naive join.** `escapeCsvField` doubles embedded quotes and wraps fields containing comma/quote/newline. Caught by a dedicated e2e that seeds a title with both a comma and a quote.
+- **No chart library.** The trend is a flex row of div-bars. Matches the Phase 5 decision to hand-roll primitives (shadcn was broken on Tailwind v4); a chart lib would be a new dependency for a single small viz.
+- **CSV download via fetch+blob, not `<a href>`.** Browsers won't attach the Authorization header to a navigated link, so we fetch the blob with `apiFetch` (token + silent refresh handled) and trigger a download via an object URL.
+
+**Verified (real output, not assumed):**
+- `pnpm lint` — 3 workspaces pass.
+- `pnpm typecheck` — 3 workspaces pass.
+- `pnpm test` — api **215** + shared **16** + web **11** = 242 passed.
+- `pnpm build` — api + web; dashboard renders real KPIs (no more placeholder).
+
+**Deferred / out of Phase 7:**
+- Async report generation (BullMQ) + R2 storage → ADR 0005 (deferred; synchronous is right-sized).
+- PDF report generation → Phase 10 polish.
+- Real-time dashboard (websockets / SSE) → unscheduled.
+
+**Next:** Phase 8 — Notifications (read/mark-read service + UI, 60s polling; consumes the low-stock Notifications Phase 6 already produces).
