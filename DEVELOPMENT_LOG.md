@@ -120,3 +120,35 @@ the end of each phase. Mirrors the process defined in
 - Full dashboard UI (Phase 7).
 
 **Next:** Phase 2 — reference data (locations, categories, users CRUD + `/users` admin page replacing the `/auth/admin-probe`).
+
+---
+
+## 2026-06-19 — Phase 2: Reference Data
+
+**Done:**
+- `packages/shared/src/reference.ts`: Zod schemas for locations/categories (request + response), `createUserRequestSchema`, `changeRoleRequestSchema`, `changePasswordRequestSchema`, and a shared `listQuerySchema` (search + page + limit, capped at 100). Extracted a reusable `passwordSchema` from `registerRequestSchema` (now shared by register, createUser, changePassword — single source for the policy). Extended `userResponseSchema` with `mustChangePassword: boolean`.
+- Prisma: `User.mustChangePassword Boolean @default(false)` (migration `add_user_must_change_password`). Default `false` keeps Phase 1a self-registered admins unaffected; only `/users`-created rows get `true`.
+- Backend auth: `AuthService.login` gates on `mustChangePassword` (403 `{ code: "MUST_CHANGE_PASSWORD" }` before issuing tokens). New `AuthService.changePassword` (verifies temp password, hashes new, clears flag, returns `AuthResponse`). `POST /auth/change-password` (no Bearer — the blocked login issued none), throttled like login/register.
+- Backend reference modules — `LocationsModule`, `CategoriesModule` (mirrors), `UsersModule` — each with controller + service. Multi-tenancy via per-service `companyId` from `@CurrentUser()` on every read/write; cross-tenant lookups by id → 404 (no existence leak). Delete guards: locations/categories with assets → 409. `UsersModule`: list (no password), create (temp password + force-change, P2002→409), role-change (admin-only).
+- RBAC: reads open to any authenticated user; reference writes require admin/manager; `/users` list+create admin/manager; `/users/:id/role` admin-only. `class`-level `@Roles("admin","manager")` on `UsersController` with the role-change route narrowing to `@Roles("admin")`.
+- Tests: 10 critical-path e2e (real Postgres) — locations CRUD scoped, cross-tenant 404, delete-guard 409, category mirror, user-create temp-password + dup 409, force-change flow, RBAC role-change (admin ok / manager 403), viewer write 403, weak-password 400 — + 15 new unit tests across the modules. `test/reference.e2e.spec.ts` resets the in-memory `ThrottlerStorage` per test (same fix as Phase 1a's throttle test) so multi-register tests aren't throttled by earlier tests.
+- Frontend: `lib/api/reference.ts` (typed locations/categories/users calls via `apiJson`), `changePasswordApi` in `auth.ts`, `AppSidebar` (Users link hidden for non-admin/manager — cosmetic, backend enforces), `DataTable` + `Modal` primitives (hand-rolled on Tailwind v4). Pages: `/locations`, `/categories`, `/users` (DataTable + create/edit Modal via RHF + shared Zod; delete with 409 surfaced; role-change dropdown), and `/change-password` (Suspense-wrapped for `useSearchParams`). `(dashboard)/layout.tsx` now renders the sidebar. `AuthForm` routes a `MUST_CHANGE_PASSWORD` 403 to `/change-password?email=…`.
+
+**Decisions:**
+- **Temp password + force-change** (ADR 0003) over admin-sets-final-password (admin would know it) and over email-invite (no SMTP until Phase 10). Chosen to ship a secure provisioning flow now without an email dependency.
+- **Cross-tenant access → 404** (not 403) so response codes don't leak the existence of another company's records.
+- **Per-service `companyId` filter** (not a Prisma extension/interceptor) — explicit, auditable, matches Phase 1a. Each `where: { companyId }` is an audit point that data stays tenant-scoped.
+- **`loginApi` reads the 403 body** to extract `code: "MUST_CHANGE_PASSWORD"` — Nest serializes `ForbiddenException(obj)` as `{ message: obj }`, so the client unwraps it to distinguish a role-based 403 from the force-change 403.
+
+**Verified (real output, not assumed):**
+- `pnpm lint` — 3 workspaces pass.
+- `pnpm typecheck` — 3 workspaces pass.
+- `pnpm test` — api **79** + shared **16** + web **11** = 106 passed.
+- `pnpm build` — api + web; web emits `/locations`, `/categories`, `/users` (ƒ dynamic, server cookie guard), `/change-password`, plus the Phase 1 routes.
+
+**Deferred / out of Phase 2:**
+- User deactivation/soft-delete + re-invite → future.
+- Email-based invites (no admin-set temp password) → Phase 10 once SMTP exists.
+- Audit log of who changed which user's role → future.
+
+**Next:** Phase 3 — Assets + QR codes (asset CRUD, opaque-token QR generation, QR lookup, UI).
