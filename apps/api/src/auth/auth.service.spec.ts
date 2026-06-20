@@ -26,6 +26,7 @@ function makeEnv() {
     JWT_ACCESS_TTL: "15m",
     JWT_REFRESH_TTL: "7d",
     CORS_ORIGIN: "*",
+    PUBLIC_SCAN_BASE: "http://localhost:3000",
   };
 }
 

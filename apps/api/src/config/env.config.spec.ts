@@ -26,10 +26,11 @@ describe("envSchema", () => {
   });
 
   it("applies defaults for optional fields", () => {
-    const minimal = { ...validEnv, JWT_ACCESS_TTL: undefined, CORS_ORIGIN: undefined };
+    const minimal = { ...validEnv, JWT_ACCESS_TTL: undefined, CORS_ORIGIN: undefined, PUBLIC_SCAN_BASE: undefined };
     const parsed = envSchema.parse(minimal);
     expect(parsed.JWT_ACCESS_TTL).toBe("15m");
     expect(parsed.CORS_ORIGIN).toBe("http://localhost:3000");
+    expect(parsed.PUBLIC_SCAN_BASE).toBe("http://localhost:3000");
   });
 
   it("rejects a JWT_SECRET shorter than 16 chars", () => {
