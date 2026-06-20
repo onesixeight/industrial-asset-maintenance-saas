@@ -39,7 +39,16 @@ export function testPrisma(): PrismaService {
 /** Truncate all tables in dependency order. Idempotent. */
 export async function truncate(): Promise<void> {
   const c = testPrisma().getClient();
+  // Dependents first (FKs), then parents.
   await c.notification.deleteMany();
+  await c.workOrderPart.deleteMany();
+  await c.inspection.deleteMany();
+  await c.workOrder.deleteMany();
+  await c.inspectionTemplate.deleteMany();
+  await c.part.deleteMany();
+  await c.asset.deleteMany();
+  await c.category.deleteMany();
+  await c.location.deleteMany();
   await c.user.deleteMany();
   await c.company.deleteMany();
 }
