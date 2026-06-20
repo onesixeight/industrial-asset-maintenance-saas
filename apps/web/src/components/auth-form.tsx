@@ -40,9 +40,17 @@ export function AuthForm({ mode }: { mode: Mode }) {
       else await login.mutateAsync(values as LoginRequest);
       router.push("/dashboard");
     } catch (e) {
-      const status = (e as { status?: number }).status;
-      if (status === 401) setServerError("Invalid email or password.");
-      else if (status === 409) setServerError("Email already registered.");
+      const err = e as { status?: number; code?: string };
+      // Force-change gate: a 403 carrying MUST_CHANGE_PASSWORD routes the user
+      // to the change-password page (prefilled email) rather than a generic 403.
+      if (!isRegister && err.status === 403 && err.code === "MUST_CHANGE_PASSWORD") {
+        const email = (values as LoginRequest).email;
+        router.push(`/change-password?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      if (err.status === 401) setServerError("Invalid email or password.");
+      else if (err.status === 403) setServerError("You don't have permission to log in here.");
+      else if (err.status === 409) setServerError("Email already registered.");
       else setServerError("Something went wrong. Please try again.");
     }
   }

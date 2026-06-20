@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { AppSidebar } from "@/components/app-sidebar";
 
 export default async function DashboardLayout({
   children,
@@ -13,5 +14,10 @@ export default async function DashboardLayout({
   // silent refresh on the dashboard page.
   const store = await cookies();
   if (!store.has("refresh_token")) redirect("/login");
-  return <>{children}</>;
+  return (
+    <div className="flex min-h-screen">
+      <AppSidebar />
+      <main className="flex-1 overflow-x-auto p-8">{children}</main>
+    </div>
+  );
 }

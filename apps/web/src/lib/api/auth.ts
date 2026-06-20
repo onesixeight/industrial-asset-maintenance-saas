@@ -1,5 +1,6 @@
 import type {
   AuthResponse,
+  ChangePasswordRequest,
   LoginRequest,
   RegisterRequest,
   TokenResponse,
@@ -27,13 +28,34 @@ export function registerApi(input: RegisterRequest): Promise<AuthResponse> {
   }).then(json<AuthResponse>);
 }
 
-export function loginApi(input: LoginRequest): Promise<AuthResponse> {
-  return fetch(`${base()}/auth/login`, {
+export async function loginApi(input: LoginRequest): Promise<AuthResponse> {
+  const res = await fetch(`${base()}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify(input),
-  }).then(json<AuthResponse>);
+  });
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status}`) as Error & { status: number; code?: string };
+    err.status = res.status;
+    // The force-change 403 carries { code: "MUST_CHANGE_PASSWORD" } (Nest
+    // serializes ForbiddenException(obj) as { message: obj }); extract the code
+    // so the login form can route to /change-password instead of a generic 403.
+    if (res.status === 403) {
+      try {
+        const body = (await res.clone().json()) as {
+          code?: string;
+          message?: string | { code?: string };
+        };
+        const msg = body.message;
+        err.code = body.code ?? (typeof msg === "object" ? msg.code : undefined);
+      } catch {
+        // body not JSON or empty — leave code undefined
+      }
+    }
+    throw err;
+  }
+  return res.json() as Promise<AuthResponse>;
 }
 
 export function refreshApi(): Promise<TokenResponse> {
@@ -56,4 +78,14 @@ export function meApi(accessToken: string): Promise<UserResponse> {
     headers: { Authorization: `Bearer ${accessToken}` },
     credentials: "include",
   }).then(json<UserResponse>);
+}
+
+/** No Bearer: the force-change flow runs after a blocked login issued no tokens. */
+export function changePasswordApi(input: ChangePasswordRequest): Promise<AuthResponse> {
+  return fetch(`${base()}/auth/change-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(input),
+  }).then(json<AuthResponse>);
 }
