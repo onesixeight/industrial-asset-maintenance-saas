@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
+import { NotificationsMenu } from "@/components/notifications-menu";
 
 export default async function DashboardLayout({
   children,
@@ -17,7 +18,12 @@ export default async function DashboardLayout({
   return (
     <div className="flex min-h-screen">
       <AppSidebar />
-      <main className="flex-1 overflow-x-auto p-8">{children}</main>
+      <div className="flex flex-1 flex-col">
+        <header className="flex items-center justify-end gap-3 border-b border-border px-8 py-2">
+          <NotificationsMenu />
+        </header>
+        <main className="flex-1 overflow-x-auto p-8">{children}</main>
+      </div>
     </div>
   );
 }
