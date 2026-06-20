@@ -216,3 +216,35 @@ the end of each phase. Mirrors the process defined in
 - Notifications on assignment/due-date → Phase 8.
 
 **Next:** Phase 5 — Inspections (templates + inspection, dynamic checklist, `passed` logic, QR link).
+
+---
+
+## 2026-06-20 — Phase 5: Inspections
+
+**Done:**
+- `packages/shared/src/inspections.ts`: Zod schemas — template items (`{ id, label, type: "pass_fail" }`), `createTemplateRequestSchema`, `updateTemplateRequestSchema`, `templateResponseSchema`, `inspectionResultSchema` (`{ itemId, value: "pass"|"fail" }`), `submitInspectionRequestSchema`, `inspectionResponseSchema`, `inspectionFiltersSchema` (with a custom `booleanQuery` preprocessor — `z.coerce.boolean()` treats `Boolean("false")` as true, so we parse `"true"`/`"false"` explicitly). Re-exported from `index.ts`.
+- Backend `InspectionsModule` (controller + service + pure `compute-passed.ts`): template CRUD (server generates item `id`s via `randomUUID()`, type always `"pass_fail"`; multi-tenant; delete guard 409 if inspections reference); inspection submit (validates asset + template in company, validates results against template items via `validateResults`, computes `passed` server-side — **never trusted from the client**); list/get with filters (asset/template/passed). `inspectedById` = the authenticated submitter. `items`/`results` are Prisma `Json` → validated at the service boundary.
+- **`passed` logic** (the critical-path test, exec spec §3.1): `validateResults(templateItemIds, results)` returns `{ ok, passed }` — passed = true iff every template item has exactly one `"pass"` result (missing/duplicate/extra/unknown → `{ ok: false }` → 400). One `"fail"` → `passed=false`. Pure function, unit-tested directly (5 tests).
+- RBAC: reads (list/get templates + inspections) open to all; template writes (create/edit/delete) admin/manager; inspection submit technician/manager/admin. Static `/templates` segments before `:id` (same as Phase 3 QR ordering).
+- Tests: 10 critical-path e2e (real Postgres) — template CRUD + server item ids, all-pass→passed=true + one-fail→passed=false (the §512 rule), missing/unknown itemId→400, foreign-tenant→404, inspectedById=submitter, template delete guard 409, cross-tenant 404, RBAC (viewer 403 / technician submit 200 / technician create template 403), filtered list, passed=false in filtered=false not in filtered=true — + 7 service unit tests + 5 validateResults unit tests. Also fixed `truncate()` in `test/db.ts` to clear all domain tables (was only clearing notification/user/company — Phase 5 inspections were leaking between tests).
+- Frontend: `lib/api/inspections.ts`, `PassedBadge` (green Passed / red Failed). Pages: `/inspections` (list + asset/template/passed filters), `/inspections/new` (asset+template select → dynamic pass/fail checklist from template items + notes → submit shows result), `/inspections/[id]` (read-only checklist + PassedBadge + notes), `/inspections/templates` (list + create/edit modal with dynamic item rows + delete with 409). Sidebar: + "Inspections" + "Templates" (manager/admin).
+
+**Decisions:**
+- **Item type = `pass_fail` only** (user-confirmed; PROJECT_PLAN §510). Measurement/text types deferred to Phase 9 polish — keeps `passed` unambiguous.
+- **`passed` computed server-side, never from client.** The submit endpoint accepts `results` and the service derives `passed` via `validateResults` — results validated against the template (all items present, no unknowns/duplicates). This is the critical-path rule: one `fail` → `passed=false`.
+- **Inspections are immutable history** — no `PATCH /inspections/:id`. An inspection is a snapshot; editing a template later doesn't retroactively change past inspections (they store `results` + `passed` on the row, self-contained).
+- **Template `items`/inspection `results` are Prisma `Json` columns** — shape enforced by Zod at the service boundary, not by the column type.
+- **`booleanQuery` preprocessor** — `z.coerce.boolean()` is broken for query strings (`Boolean("false") === true`); we parse `"true"`/`"false"` explicitly. This was caught by test #10.
+
+**Verified (real output, not assumed):**
+- `pnpm lint` — 3 workspaces pass.
+- `pnpm typecheck` — 3 workspaces pass.
+- `pnpm test` — api **143** + shared **16** + web **11** = 170 passed.
+- `pnpm build` — api + web; web emits `/inspections`, `/inspections/[id]`, `/inspections/new`, `/inspections/templates`.
+
+**Deferred / out of Phase 5:**
+- `measurement` / `text` item types → Phase 9 polish.
+- Inspection PDF export → Phase 7/10.
+- Auto-create from schedule, re-running/superseding → future.
+
+**Next:** Phase 6 — Parts inventory (Part + WorkOrderPart transactional consumption, low-stock, restock).
