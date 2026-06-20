@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { listQuerySchema } from "./reference";
+import { booleanQuery, listQuerySchema } from "./reference";
 
 // --- Template items (pass_fail only — spec §3.1) --------------------------
 
@@ -68,15 +68,7 @@ export const inspectionResponseSchema = z.object({
 export type InspectionResponse = z.infer<typeof inspectionResponseSchema>;
 
 // Query params arrive as strings: "true"/"false"/absent. z.coerce.boolean()
-// would treat `Boolean("false")` as true, so parse explicitly.
-const booleanQuery = z
-  .preprocess((v) => {
-    if (v === undefined || v === null || v === "") return undefined;
-    if (v === "true" || v === true) return true;
-    if (v === "false" || v === false) return false;
-    return undefined;
-  }, z.boolean().optional());
-
+// would treat `Boolean("false")` as true, so use the shared booleanQuery.
 export const inspectionFiltersSchema = listQuerySchema.extend({
   assetId: z.string().uuid().optional(),
   templateId: z.string().uuid().optional(),

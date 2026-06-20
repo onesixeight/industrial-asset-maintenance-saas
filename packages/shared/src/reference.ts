@@ -9,6 +9,19 @@ export const listQuerySchema = z.object({
 });
 export type ListQuery = z.infer<typeof listQuerySchema>;
 
+/**
+ * Query params arrive as strings: "true"/"false"/absent. `z.coerce.boolean()`
+ * would treat `Boolean("false")` as true, so parse the string explicitly.
+ * Shared so every filter schema uses the same semantics.
+ */
+export const booleanQuery = z
+  .preprocess((v) => {
+    if (v === undefined || v === null || v === "") return undefined;
+    if (v === "true" || v === true) return true;
+    if (v === "false" || v === false) return false;
+    return undefined;
+  }, z.boolean().optional());
+
 export const locationRequestSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),

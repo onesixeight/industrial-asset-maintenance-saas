@@ -8,6 +8,7 @@ import { CategoriesModule } from "./categories/categories.module";
 import { ConfigModule } from "./config";
 import { InspectionsModule } from "./inspections/inspections.module";
 import { LocationsModule } from "./locations/locations.module";
+import { PartsModule } from "./parts/parts.module";
 import { PrismaModule } from "./prisma";
 import { RedisModule } from "./redis";
 import { UsersModule } from "./users/users.module";
@@ -28,6 +29,7 @@ import { WorkOrdersModule } from "./work-orders/work-orders.module";
     AssetsModule,
     WorkOrdersModule,
     InspectionsModule,
+    PartsModule,
   ],
   controllers: [AppController],
   providers: [

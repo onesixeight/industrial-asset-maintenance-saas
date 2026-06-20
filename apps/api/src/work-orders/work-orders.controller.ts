@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type {
+  ConsumePartRequest,
   CreateWorkOrderRequest,
   JwtPayload,
   TransitionWorkOrderRequest,
@@ -19,6 +20,7 @@ import type {
   WorkOrderFilters,
 } from "@iam/shared";
 import {
+  consumePartRequestSchema,
   createWorkOrderRequestSchema,
   transitionWorkOrderRequestSchema,
   updateWorkOrderRequestSchema,
@@ -30,6 +32,7 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
 import { Roles } from "../auth/roles.decorator";
 import { WorkOrdersService } from "./work-orders.service";
+import { WorkOrderPartsService } from "./work-order-parts.service";
 
 /**
  * WorkOrder CRUD + status transitions + soft-delete. Reads are open to any
@@ -41,7 +44,10 @@ import { WorkOrdersService } from "./work-orders.service";
 @Controller("work-orders")
 @UseGuards(JwtAuthGuard)
 export class WorkOrdersController {
-  constructor(private readonly workOrders: WorkOrdersService) {}
+  constructor(
+    private readonly workOrders: WorkOrdersService,
+    private readonly woParts: WorkOrderPartsService,
+  ) {}
 
   @Get()
   list(
@@ -95,5 +101,35 @@ export class WorkOrdersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@CurrentUser() user: JwtPayload, @Param("id") id: string) {
     await this.workOrders.remove(id, user.companyId);
+  }
+
+  // --- Parts consumption (spec §3.1: transactional decrement) -------------
+
+  @Get(":id/parts")
+  listParts(@CurrentUser() user: JwtPayload, @Param("id") id: string) {
+    return this.woParts.list(id, user.companyId);
+  }
+
+  @Post(":id/parts")
+  @HttpCode(HttpStatus.CREATED)
+  consumePart(
+    @CurrentUser() user: JwtPayload,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(consumePartRequestSchema)) body: ConsumePartRequest,
+  ) {
+    // No class-level role gate: service enforces technician-ownership + admin/manager.
+    return this.woParts.consume(id, body, user);
+  }
+
+  @Delete(":id/parts/:partId")
+  @UseGuards(RolesGuard)
+  @Roles("admin", "manager")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async restockPart(
+    @CurrentUser() user: JwtPayload,
+    @Param("id") id: string,
+    @Param("partId") partId: string,
+  ) {
+    await this.woParts.restock(id, partId, user.companyId);
   }
 }
