@@ -14,7 +14,7 @@ Tracker mirrors the roadmap in
 | 6 | Parts inventory | ✅ Complete |
 | 7 | Dashboard + reports | ✅ Complete |
 | 8 | Notifications | ✅ Complete |
-| 9 | E2E + polish | ⬜ Pending |
+| 9 | E2E + polish | ✅ Complete |
 | 10 | Deployment + docs | ⬜ Pending |
 | 11 | Buffer | ⬜ Pending |
 
@@ -32,6 +32,7 @@ tests **within its phase** (not deferred to Phase 9):
 - [x] **Phase 6** — parts CRUD (multi-tenant, SKU uniqueness), transactional consumption (decrement + WorkOrderPart upsert in one `$transaction`), restock restores quantity, low-stock trigger fires only on the downward threshold crossing (no spam), technician-ownership of consumption, RBAC. 16/16 critical-path e2e + 23 unit tests pass on real PostgreSQL.
 - [x] **Phase 7** — dashboard aggregates (`/dashboard/stats` KPI cards, `/dashboard/trends` daily series + MTTR) and synchronous CSV report export (`/reports/work-orders.csv`, RFC 4180 escaping), all tenant-scoped. 10/10 critical-path e2e + 18 unit tests pass on real PostgreSQL.
 - [x] **Phase 8** — notifications consumer (list, unread-count, mark-read, mark-all-read), per-user scoping (`userId === sub`), IDOR-safe (404 on another user's id), header bell with 60s polling. Closes the Phase 6 loop: a low-stock crossing produces a notification the manager sees. 8/8 critical-path e2e + 7 unit tests pass on real PostgreSQL.
+- [x] **Phase 9** — browser-level E2E (Playwright, 5 critical paths: register→dashboard, login→silent-refresh, WO lifecycle, parts-consume→notification loop, RBAC-403), Swagger at `/docs`, error/not-found pages, and a CI Playwright job with artifact upload. Live browser run caught + fixed a real zustand `useAuth` infinite-loop bug (getSnapshot not cached). 5/5 Playwright specs green against a live docker-compose stack.
 
 ## Coverage policy
 

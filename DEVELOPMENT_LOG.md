@@ -349,3 +349,44 @@ the end of each phase. Mirrors the process defined in
 - Email/digest delivery → unscheduled (YAGNI).
 
 **Next:** Phase 9 — E2E + polish (Playwright critical paths, Swagger, error/loading states, edge cases).
+
+---
+
+## 2026-06-21 — Phase 9: E2E + Polish
+
+**Done:**
+- **Swagger** (`@nestjs/swagger`): `DocumentBuilder` wired in `main.ts`, served at `GET /docs` (disabled in production via `NODE_ENV`). Enabled the Nest swagger CLI plugin in `nest-cli.json` for controller/DTO introspection. Added `@ApiTags(...)` to all 11 controllers (auth, users, locations, categories, assets, work-orders, inspections, parts, dashboard, reports, notifications) via a batch edit.
+- **Playwright browser E2E** (`apps/web/e2e/`): installed `@playwright/test` + chromium, `playwright.config.ts` (baseURL :3000, webServer=Next dev, screenshot on failure, trace on first retry, 1 worker — shared test DB). `e2e/helpers.ts` with `registerCompany`, `seedAsset`, and a `loginThroughUi` helper that **drives the real login flow through the browser** (not token injection — see ADR 0007) and navigates the Phase 1a force-change-password gate when the user was admin-created.
+  - **5 critical-path specs, all green against a live docker-compose stack:**
+    1. `register-dashboard` — register a fresh company, land on /dashboard with KPI cards
+    2. `login-silent-refresh` — login, reload, remain authenticated (Phase 1b loop)
+    3. `work-order-lifecycle` — create WO, transition open→in_progress→completed, status badge updates
+    4. `parts-notification` — create part, consume past low-stock threshold, the **manager's bell badge increments** (Phase 6→8 loop end-to-end in a real browser)
+    5. `rbac` — viewer reaches the new-WO form but the create submission is **rejected with 403** by the backend RolesGuard (the UI doesn't cosmetically hide the button; the guard is the contract)
+- **Error/loading polish:** `apps/web/src/app/not-found.tsx` (global 404 with link home), `apps/web/src/app/error.tsx` (client error boundary with retry). Most pages already show "Loading…".
+- **CI:** added a `playwright` job to `.github/workflows/ci.yml` — postgres+redis services, builds shared+api, installs chromium with deps, starts the api, waits on `/health` via `wait-on`, runs `playwright test`, uploads `playwright-report/` (14d) + `test-results/` traces (7d) on failure.
+
+**Bugs found + fixed by the live browser run (the whole point of Phase 9):**
+- **`useAuth` infinite loop (zustand).** The `useAuth` selector returned a new object literal every render → `useSyncExternalStore` threw "getSnapshot should be cached" → `<AppSidebar>` crashed the dashboard with "Maximum update depth exceeded". This was latent through Phases 1–8 because vitest never rendered the component. Fixed by wrapping the selector in `useShallow` (`zustand/react/shallow`) so the returned reference is stable when values are equal.
+- **`main.ts` pino logger crash.** `app.get(Logger)` from `nestjs-pino` threw "Nest could not find Logger element" because `LoggerModule` was never registered — only the import existed. Latent for the same reason (vitest doesn't run main.ts). Fixed by removing the pino logger line and using the default Nest logger.
+- **Shared package not buildable.** `@iam/shared` had `"type": "module"` + `main: "./src/index.ts"` (raw TS), which Node's ESM loader can't resolve (missing extensions) when the compiled api imports it. Added a `tsconfig.json` + `build` script that emits CJS `dist/`, pointed `main`/`types` at `dist`. The api server now boots.
+
+**Decisions:**
+- **Playwright authenticates via the real login flow, not token injection** (ADR 0007). The access token is in-memory (Zustand) and the refresh token is httpOnly — neither can be injected into a fresh browser context. Specs `POST /auth/login` through the browser so the cookie is set and the client-side silent refresh hydrates auth naturally. This also exercises the real auth path, which is the point of E2E.
+- **RBAC test asserts the 403, not a hidden button.** The WO list page shows "New work order" to everyone; the RolesGuard is the actual gate. The spec verifies a viewer's submission is rejected — that's the contract that matters, not a cosmetic UI hide.
+- **`loginThroughUi` handles the must-change-password gate.** Admin-created users ship with `mustChangePassword: true`; the helper waits for either `/dashboard` or `/change-password`, fills the form by stable input `id` (`#currentPassword`/`#newPassword` — `getByLabel` was flaky against the `(temporary)` parenthetical), submits, and waits for `/dashboard`.
+
+**Verified (real output, not assumed):**
+- `pnpm lint` — 4 workspaces pass.
+- `pnpm typecheck` — 4 workspaces pass.
+- `pnpm test` — api **230** + shared **16** + web **11** = 257 vitest passed.
+- `pnpm build` — 3 workspaces pass.
+- `pnpm --filter @iam/web exec playwright test` — **5/5 specs green** against live api(:4000) + web(:3000) + postgres(:5432) + redis(:6379). Screenshots captured (`phase9-01..05-*.png`).
+- `curl /health` → 200, `curl /docs/` → 200.
+
+**Deferred / out of Phase 9:**
+- Exhaustive per-DTO Swagger `@ApiProperty` annotation → Phase 10 polish (the plugin infers most).
+- Visual regression testing → unscheduled.
+- Mobile-responsive pass → Phase 11 buffer.
+
+**Next:** Phase 10 — Deployment + docs (Vercel + Render + Upstash + R2, seed script, README Quick Start + demo account, screenshots, Playwright CI artifacts).
