@@ -1,4 +1,5 @@
 import { Controller, Get, Header, UseGuards } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type { JwtPayload } from "@iam/shared";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
@@ -9,6 +10,7 @@ import { ReportsService } from "./reports.service";
  * on demand and returned as `text/csv` with an attachment disposition so the
  * browser saves it. Tenant-scoped via `user.companyId`.
  */
+@ApiTags("reports")
 @Controller("reports")
 @UseGuards(JwtAuthGuard)
 export class ReportsController {

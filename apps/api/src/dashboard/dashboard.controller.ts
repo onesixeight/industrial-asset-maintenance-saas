@@ -1,4 +1,5 @@
 import { Controller, Get, Query, UseGuards } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type { JwtPayload, TrendsQuery } from "@iam/shared";
 import { trendsQuerySchema } from "@iam/shared";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -11,6 +12,7 @@ import { DashboardService } from "./dashboard.service";
  * own tenant's stats/trends — there is nothing to gate (no writes), and the
  * service scopes every query by `user.companyId`.
  */
+@ApiTags("dashboard")
 @Controller("dashboard")
 @UseGuards(JwtAuthGuard)
 export class DashboardController {

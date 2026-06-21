@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type { CategoryRequest, JwtPayload, ListQuery } from "@iam/shared";
 import { categoryRequestSchema, listQuerySchema } from "@iam/shared";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -24,6 +25,7 @@ import { CategoriesService } from "./categories.service";
  * Category CRUD. Reads open to any authenticated user; writes require
  * admin or manager (spec §3.6). Mirror of LocationsController.
  */
+@ApiTags("categories")
 @Controller("categories")
 @UseGuards(JwtAuthGuard)
 export class CategoriesController {

@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type {
   CreatePartRequest,
   JwtPayload,
@@ -34,6 +35,7 @@ import { PartsService } from "./parts.service";
  * admin/manager (Phase 3 RBAC pattern). All operations are tenant-scoped via
  * `user.companyId`. The consumption endpoints live on WorkOrdersController.
  */
+@ApiTags("parts")
 @Controller("parts")
 @UseGuards(JwtAuthGuard)
 export class PartsController {

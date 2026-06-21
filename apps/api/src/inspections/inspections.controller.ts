@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type {
   CreateTemplateRequest,
   InspectionFilters,
@@ -37,6 +38,7 @@ import { InspectionsService } from "./inspections.service";
  * inspection is open to technician/manager/admin (the field workers). Static
  * `/templates` segments are declared before `:id` so they aren't swallowed.
  */
+@ApiTags("inspections")
 @Controller("inspections")
 @UseGuards(JwtAuthGuard)
 export class InspectionsController {

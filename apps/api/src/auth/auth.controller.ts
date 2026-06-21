@@ -9,6 +9,7 @@ import {
   Res,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import type { Request, Response } from "express";
 import type {
@@ -49,6 +50,7 @@ function readRefresh(req: Request): string | undefined {
  * httpOnly cookie (set on register/login, cleared on logout) with a body
  * fallback for non-browser clients (spec §4, §10).
  */
+@ApiTags("auth")
 @Controller("auth")
 export class AuthController {
   constructor(private readonly auth: AuthService) {}

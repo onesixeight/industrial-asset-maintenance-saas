@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type {
   ConsumePartRequest,
   CreateWorkOrderRequest,
@@ -41,6 +42,7 @@ import { WorkOrderPartsService } from "./work-order-parts.service";
  * enforces technician-ownership (assigned WOs) vs manager/admin (any), since
  * "technician if owner" can't be expressed by RolesGuard alone (spec §3.4).
  */
+@ApiTags("work-orders")
 @Controller("work-orders")
 @UseGuards(JwtAuthGuard)
 export class WorkOrdersController {

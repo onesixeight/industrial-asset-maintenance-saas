@@ -13,6 +13,7 @@ import {
   Res,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import type {
   AssetFilters,
@@ -41,6 +42,7 @@ import { AssetsService } from "./assets.service";
  * Route order matters: `GET qr/:token` is declared before `GET :id` so the
  * static `qr` segment isn't swallowed by the `:id` param.
  */
+@ApiTags("assets")
 @Controller("assets")
 @UseGuards(JwtAuthGuard)
 export class AssetsController {

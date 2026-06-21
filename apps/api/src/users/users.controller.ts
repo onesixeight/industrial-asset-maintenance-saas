@@ -7,6 +7,7 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type {
   ChangeRoleRequest,
   CreateUserRequest,
@@ -25,6 +26,7 @@ import { UsersService } from "./users.service";
  * User management. The whole controller requires admin or manager (spec §3.6);
  * the role-change route narrows further to admin-only.
  */
+@ApiTags("users")
 @Controller("users")
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("admin", "manager")

@@ -11,6 +11,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type { JwtPayload, LocationRequest, ListQuery } from "@iam/shared";
 import { listQuerySchema, locationRequestSchema } from "@iam/shared";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -24,6 +25,7 @@ import { LocationsService } from "./locations.service";
  * Location CRUD. Reads are open to any authenticated user; writes
  * (create/update/delete) require admin or manager (spec §3.6).
  */
+@ApiTags("locations")
 @Controller("locations")
 @UseGuards(JwtAuthGuard)
 export class LocationsController {

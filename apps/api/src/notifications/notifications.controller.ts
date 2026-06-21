@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiTags } from "@nestjs/swagger";
 import type { JwtPayload, NotificationListQuery } from "@iam/shared";
 import { notificationListQuerySchema } from "@iam/shared";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -21,6 +22,7 @@ import { NotificationsService } from "./notifications.service";
  * are user-owned, not company-owned). Static routes (`unread-count`,
  * `read-all`) are declared before `:id` so Nest doesn't route them as ids.
  */
+@ApiTags("notifications")
 @Controller("notifications")
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
