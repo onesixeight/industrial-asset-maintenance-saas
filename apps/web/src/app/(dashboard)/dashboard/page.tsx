@@ -119,7 +119,7 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-2">
         <div className="flex items-baseline justify-between">
           <h2 className="text-lg font-semibold">Work orders — last {trends?.windowDays ?? 30} days</h2>
-          {trends?.mttrHours !== null && trends?.mttrHours !== undefined ? (
+          {trends && trends.mttrHours !== null && trends.mttrHours > 0 ? (
             <span className="text-sm text-muted-foreground">
               MTTR: {trends.mttrHours.toFixed(1)}h
             </span>

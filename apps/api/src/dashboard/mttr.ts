@@ -11,9 +11,11 @@ export function computeMttr(
     (i): i is { createdAt: Date; completedAt: Date } => i.completedAt !== null,
   );
   if (completed.length === 0) return null;
-  const ms = completed.reduce(
-    (sum, i) => sum + (i.completedAt.getTime() - i.createdAt.getTime()),
-    0,
-  );
+  const ms = completed.reduce((sum, i) => {
+    // Guard against non-monotonic clocks / seed ordering where completedAt
+    // lands microseconds before createdAt — clamp to 0 so MTTR can't go negative.
+    const delta = Math.max(0, i.completedAt.getTime() - i.createdAt.getTime());
+    return sum + delta;
+  }, 0);
   return ms / completed.length / 3_600_000;
 }

@@ -423,3 +423,25 @@ the end of each phase. Mirrors the process defined in
 - Production monitoring/observability — unscheduled.
 
 **Next:** Phase 11 — Buffer (bugs, mobile, perf, polish). The roadmap's critical path (Phases 0–10) is complete.
+
+---
+
+## 2026-06-21 — Phase 11: Buffer (audit-driven fixes)
+
+**Done:** The exec spec leaves Phase 11 open ("bugs, mobile, perf, polish"). I audited the live stack (browser + repo) rather than inventing work, and found three real issues — all fixed.
+
+- **Mobile responsive sidebar.** The dashboard layout used a fixed `w-56` (224px) sidebar on every viewport — on a 375px phone that left ~150px for the main content, crushing the KPI grid, tables, and forms (verified by a mobile screenshot). `AppSidebar` is now a Client Component: static column on `md+` (`hidden md:flex`), and a hamburger button + slide-over drawer below `md`. The drawer closes on link navigation (pathname → `setOpen(false)`) so a tap doesn't leave an open overlay. Verified: mobile viewport now shows full-width content; desktop layout unchanged.
+- **Favicon.** Every page logged a 404 for `/favicon.ico`. Added `apps/web/src/app/icon.svg` (App Router convention — Next auto-serves it as the favicon). Console error count dropped to 0.
+- **MTTR `-0.0h` display bug.** The demo seed creates a completed WO with `completedAt: new Date()` that, due to the order of `default(now())` createdAt vs the explicit completedAt, can land a few microseconds *before* createdAt → `computeMttr` returned a tiny negative number → the dashboard rendered `MTTR: -0.0h`. Fixed at two layers: (a) backend `computeMttr` now clamps each delta with `Math.max(0, ...)` so a non-monotonic clock / seed race can't produce negative MTTR (new unit test covers it); (b) frontend hides the MTTR readout unless `mttrHours > 0` (null/zero/negative → no readout, instead of a misleading `-0.0h`).
+
+**Verified (real output, not assumed):**
+- `pnpm lint` / `pnpm typecheck` / `pnpm build` — green (3/4/3 workspaces).
+- `pnpm test` — api **231** (added MTTR clamp test) + shared **16** + web **11** = 258 passed.
+- `pnpm --filter @iam/web exec playwright test` — **5/5 green** (sidebar refactor didn't regress).
+- Live mobile viewport (375×667): hamburger visible, drawer opens/closes, full-width content, **0 console errors**.
+
+**Notes:**
+- Audit also confirmed the demo seed renders correctly on the dashboard (1 open, 1 in-progress, 3 assets, 1 low-stock part — all from the seed).
+- No TODO/FIXME markers in the source. No other in-your-face bugs surfaced.
+
+**Status:** Phases 0–11 complete. The roadmap is finished.

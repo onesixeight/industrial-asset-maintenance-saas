@@ -16,7 +16,7 @@ Tracker mirrors the roadmap in
 | 8 | Notifications | ✅ Complete |
 | 9 | E2E + polish | ✅ Complete |
 | 10 | Deployment + docs | ✅ Complete |
-| 11 | Buffer | ⬜ Pending |
+| 11 | Buffer | ✅ Complete |
 
 ## Critical-path test coverage
 
@@ -34,6 +34,7 @@ tests **within its phase** (not deferred to Phase 9):
 - [x] **Phase 8** — notifications consumer (list, unread-count, mark-read, mark-all-read), per-user scoping (`userId === sub`), IDOR-safe (404 on another user's id), header bell with 60s polling. Closes the Phase 6 loop: a low-stock crossing produces a notification the manager sees. 8/8 critical-path e2e + 7 unit tests pass on real PostgreSQL.
 - [x] **Phase 9** — browser-level E2E (Playwright, 5 critical paths: register→dashboard, login→silent-refresh, WO lifecycle, parts-consume→notification loop, RBAC-403), Swagger at `/docs`, error/not-found pages, and a CI Playwright job with artifact upload. Live browser run caught + fixed a real zustand `useAuth` infinite-loop bug (getSnapshot not cached). 5/5 Playwright specs green against a live docker-compose stack.
 - [x] **Phase 10** — idempotent seed script (`db:seed`, demo company + admin/manager/tech + assets/WOs/parts, verified locally + login works), deployment configs (`render.yaml` api+postgres Blueprint, `vercel.json` web build+rewrite), README rewrite (Quick Start with demo account, screenshots, deployment walk-through, full ADR index 0001–0008). R2 deferred per ADR 0005.
+- [x] **Phase 11** — buffer: three audit-driven fixes. (1) Mobile responsive sidebar — hamburger + slide-over drawer on `<md`, static column on md+ (was eating 224px of 375px viewport). (2) Favicon via App Router `icon.svg` (was a 404 on every page). (3) MTTR display bug — backend `computeMttr` now clamps non-monotonic deltas to 0 (seed race), frontend hides MTTR when `≤ 0` (was rendering `-0.0h`). All 258 vitest + 5 Playwright green; verified in a live mobile viewport.
 
 ## Coverage policy
 

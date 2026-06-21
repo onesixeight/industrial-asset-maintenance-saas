@@ -36,4 +36,12 @@ describe("computeMttr", () => {
     ]);
     expect(result).toBe(1.5);
   });
+
+  it("clamps non-monotonic deltas to 0 (seed race where completedAt ≤ createdAt)", () => {
+    // createdAt 1s AFTER completedAt — would otherwise produce a negative MTTR.
+    const result = computeMttr([
+      { createdAt: new Date("2026-01-01T00:00:01Z"), completedAt: new Date("2026-01-01T00:00:00Z") },
+    ]);
+    expect(result).toBe(0);
+  });
 });
