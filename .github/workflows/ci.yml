@@ -61,3 +61,78 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  playwright:
+    # Browser-level E2E (Phase 9). Slower than the vitest suite, so it runs as
+    # its own job. Hits the same test postgres + redis services; the API and
+    # web servers are started in the background, then Playwright drives a real
+    # browser through the critical paths.
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: iam
+          POSTGRES_PASSWORD: iam
+          POSTGRES_DB: iam_dev
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U iam -d iam_dev"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://iam:iam@localhost:5432/iam_dev?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-secret-at-least-16-chars
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL: 7d
+      CORS_ORIGIN: http://localhost:3000
+      PORT: "4000"
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply Prisma migrations
+        run: pnpm --filter @iam/api exec prisma migrate deploy --schema prisma/schema.prisma
+      - name: Build shared + api
+        run: |
+          pnpm --filter @iam/shared build
+          pnpm --filter @iam/api build
+      - name: Install Playwright browser
+        run: pnpm --filter @iam/web exec playwright install --with-deps chromium
+      - name: Start API server
+        run: pnpm --filter @iam/api start &
+      - name: Wait for API
+        run: npx wait-on http://localhost:4000/health -t 60s
+      - name: Run Playwright
+        run: pnpm --filter @iam/web exec playwright test
+        env:
+          CI: "true"
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 14
+      - name: Upload Playwright traces
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: apps/web/test-results/
+          retention-days: 7

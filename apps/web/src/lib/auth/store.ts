@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import type { UserResponse } from "@iam/shared";
 
 interface AuthState {
@@ -21,10 +22,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   setStatus: (status) => set({ status }),
 }));
 
-/** Read-only selector hook for components. */
+/**
+ * Read-only selector hook for components. Uses `useShallow` so the returned
+ * object reference is stable across renders when the selected values are equal
+ * — without it the selector builds a new object every render and React's
+ * useSyncExternalStore throws "getSnapshot should be cached" → infinite loop.
+ */
 export const useAuth = () =>
-  useAuthStore((s) => ({
-    user: s.user,
-    accessToken: s.accessToken,
-    status: s.status,
-  }));
+  useAuthStore(
+    useShallow((s) => ({
+      user: s.user,
+      accessToken: s.accessToken,
+      status: s.status,
+    })),
+  );
