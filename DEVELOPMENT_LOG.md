@@ -390,3 +390,36 @@ the end of each phase. Mirrors the process defined in
 - Mobile-responsive pass → Phase 11 buffer.
 
 **Next:** Phase 10 — Deployment + docs (Vercel + Render + Upstash + R2, seed script, README Quick Start + demo account, screenshots, Playwright CI artifacts).
+
+---
+
+## 2026-06-21 — Phase 10: Deployment + Docs
+
+**Done:**
+- **Seed script** (`apps/api/prisma/seed.ts`, idempotent): creates a demo company "Acme Industrial Maintenance" with admin (`demo@acme.test`) / manager / technician accounts (all `Password1`, `mustChangePassword: false` — ready to log in), 2 locations, 2 categories, 3 assets with QR tokens, 3 WOs across statuses (open/in_progress/completed), and 2 parts (one above min, one at low-stock threshold so the dashboard shows a low-stock count out of the box). Loaded the monorepo root `.env` explicitly + used the Prisma 7 driver-adapter pattern (`PrismaClient({ adapter: new PrismaPg(pool) })`) — the generated client requires the adapter (caught during local verification). Wired as `prisma.seed` + a `db:seed` npm script, run via `node --experimental-strip-types` (Node 24 native TS). **Verified locally:** seed runs, idempotent on re-run, login as `demo@acme.test` returns an access token.
+- **Deployment configs (artifacts, not live deploys — ADR 0008):**
+  - `render.yaml` — Render Blueprint: one `web` service (`iam-api`, build installs + builds shared + api + runs `prisma migrate deploy`, start = `pnpm --filter @iam/api start`, health `/health`), one managed Postgres (`iam-postgres`), env wiring (`DATABASE_URL` from the postgres resource, `REDIS_URL`/`CORS_ORIGIN`/`PUBLIC_SCAN_BASE` as `sync: false` to set in the dashboard, `JWT_SECRET` auto-generated).
+  - `vercel.json` — web build command (`pnpm --filter @iam/shared build && pnpm --filter @iam/web build`), output dir, and the `/api/* → ${API_ORIGIN}` rewrite mirroring `next.config.ts` so the browser's same-origin calls proxy to the api.
+  - Upstash Redis documented as a manual create-and-wire step (cross-provider, account-specific).
+  - R2 omitted per ADR 0005 (synchronous CSV export; no object storage in use).
+- **README rewrite:** badges + status; Quick Start with the `db:seed` step and the demo-account table (admin/manager/tech, all `Password1`); 4 screenshots (registration, dashboard, WO list, WO detail) moved to `docs/screenshots/`; updated stack list; scripts table (+`db:seed`, +`e2e`); Architecture section (multi-tenancy, hybrid JWT auth model, RBAC, in-phase critical-path tests); Deployment section with step-by-step Render/Upstash/Vercel instructions; full ADR index 0001–0008; Testing summary.
+- **`.env.example`** updated with a deployment-vars section (DATABASE_URL/REDIS_URL/CORS_ORIGIN/PUBLIC_SCAN_BASE/API_ORIGIN/JWT_SECRET for production, with the `openssl rand -hex 32` note for JWT_SECRET).
+
+**Decisions:**
+- **Ship configs, not live deploys (ADR 0008).** Executing `vercel deploy` / `render deploy` needs authenticated cloud accounts + secrets that can't be autonomously provisioned or verified here. The deliverable's value — "deploy in minutes" — is satisfied by correct `render.yaml` + `vercel.json` + docs; whether the deploy runs today or next week is environment-dependent. Option documented honestly rather than faked.
+- **Seed uses the Prisma 7 driver adapter directly.** `new PrismaClient()` with no args throws in Prisma 7 (the generated client requires `@prisma/adapter-pg`). The seed mirrors `PrismaService` exactly — a `pg.Pool` wrapped in `PrismaPg`.
+- **Node-native TS via `--experimental-strip-types`.** Node 24 strips types natively, so the seed runs as a `.ts` file with no `tsx`/`ts-node` dependency. Avoids adding a dev-only toolchain just for seeding.
+- **Demo users have `mustChangePassword: false`.** Unlike admin-created users (Phase 1a gate), the seed users are meant for immediate demo login; the flag is cleared so reviewers can log straight in without the change-password dance.
+- **R2 not included.** Per ADR 0005 we generate reports synchronously; no object storage is used, so wiring R2 would be dead config.
+
+**Verified (real output, not assumed):**
+- `pnpm --filter @iam/api db:seed` → "Seed complete." + the demo company/users/assets/WOs/parts created. Second run → "demo company already exists. Nothing to do." (idempotent).
+- `POST /auth/login` with `demo@acme.test` / `Password1` → 200 + access token (login works end-to-end after seed).
+- Lint + typecheck + build remain green (no source-code changes; Phase 10 is seed + configs + docs only).
+
+**Deferred / out of Phase 10:**
+- **Live deploy execution** — needs your cloud accounts (Render/Vercel/Upstash). Configs + README §Deployment are ready; commands documented 1:1.
+- Custom domain wiring — environment-specific.
+- Production monitoring/observability — unscheduled.
+
+**Next:** Phase 11 — Buffer (bugs, mobile, perf, polish). The roadmap's critical path (Phases 0–10) is complete.

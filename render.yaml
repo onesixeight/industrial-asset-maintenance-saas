@@ -1,0 +1,50 @@
+# Render Blueprint for the Industrial Asset Maintenance API.
+# Deploy with: `render blueprint deploy` (or connect the repo in the Render UI).
+#
+# The web service (NestJS api) is provisioned alongside a managed Postgres.
+# Redis is provided by Upstash (free tier) — create it separately and wire its
+# connection string into REDIS_URL via the Render dashboard/env group, since
+# cross-provider resources aren't expressible in a single blueprint.
+# See README §Deployment for the full walk-through.
+
+services:
+  - type: web
+    name: iam-api
+    runtime: node
+    plan: free
+    rootDir: apps/api
+    # Build the shared workspace first (the api imports @iam/shared), then the
+    # api, then apply migrations. `prisma generate` runs implicitly via postinstall.
+    buildCommand: |
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @iam/shared build &&
+      pnpm --filter @iam/api build &&
+      pnpm --filter @iam/api exec prisma migrate deploy --schema prisma/schema.prisma
+    startCommand: pnpm --filter @iam/api start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # DATABASE_URL is injected from the linked postgres resource below.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: iam-postgres
+          property: connectionString
+      - key: REDIS_URL
+        sync: false # set to your Upstash Redis endpoint in the dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 7d
+      - key: CORS_ORIGIN
+        sync: false # set to your deployed Vercel web URL
+      - key: PUBLIC_SCAN_BASE
+        sync: false # set to your deployed Vercel web URL
+      - key: NODE_ENV
+        value: production
+
+databases:
+  - name: iam-postgres
+    plan: free
+    ipAllowList: [] # Render requires an explicit empty list for public access

@@ -15,7 +15,7 @@ Tracker mirrors the roadmap in
 | 7 | Dashboard + reports | ✅ Complete |
 | 8 | Notifications | ✅ Complete |
 | 9 | E2E + polish | ✅ Complete |
-| 10 | Deployment + docs | ⬜ Pending |
+| 10 | Deployment + docs | ✅ Complete |
 | 11 | Buffer | ⬜ Pending |
 
 ## Critical-path test coverage
@@ -33,6 +33,7 @@ tests **within its phase** (not deferred to Phase 9):
 - [x] **Phase 7** — dashboard aggregates (`/dashboard/stats` KPI cards, `/dashboard/trends` daily series + MTTR) and synchronous CSV report export (`/reports/work-orders.csv`, RFC 4180 escaping), all tenant-scoped. 10/10 critical-path e2e + 18 unit tests pass on real PostgreSQL.
 - [x] **Phase 8** — notifications consumer (list, unread-count, mark-read, mark-all-read), per-user scoping (`userId === sub`), IDOR-safe (404 on another user's id), header bell with 60s polling. Closes the Phase 6 loop: a low-stock crossing produces a notification the manager sees. 8/8 critical-path e2e + 7 unit tests pass on real PostgreSQL.
 - [x] **Phase 9** — browser-level E2E (Playwright, 5 critical paths: register→dashboard, login→silent-refresh, WO lifecycle, parts-consume→notification loop, RBAC-403), Swagger at `/docs`, error/not-found pages, and a CI Playwright job with artifact upload. Live browser run caught + fixed a real zustand `useAuth` infinite-loop bug (getSnapshot not cached). 5/5 Playwright specs green against a live docker-compose stack.
+- [x] **Phase 10** — idempotent seed script (`db:seed`, demo company + admin/manager/tech + assets/WOs/parts, verified locally + login works), deployment configs (`render.yaml` api+postgres Blueprint, `vercel.json` web build+rewrite), README rewrite (Quick Start with demo account, screenshots, deployment walk-through, full ADR index 0001–0008). R2 deferred per ADR 0005.
 
 ## Coverage policy
 
