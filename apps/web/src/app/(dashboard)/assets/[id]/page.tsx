@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { assetsApi } from "@/lib/api/assets";
 import { useAuth } from "@/lib/auth/hooks";
+import { fmtDate } from "@/lib/format";
 import { Button } from "@/components/button";
 import { QrCodeDisplay } from "@/components/qr-code-display";
 
@@ -63,11 +64,11 @@ export default function AssetDetailPage() {
         <dt className="text-muted-foreground">Description</dt>
         <dd>{asset.description ?? "—"}</dd>
         <dt className="text-muted-foreground">Purchase date</dt>
-        <dd>{asset.purchaseDate ?? "—"}</dd>
+        <dd>{fmtDate(asset.purchaseDate)}</dd>
         <dt className="text-muted-foreground">Warranty date</dt>
-        <dd>{asset.warrantyDate ?? "—"}</dd>
+        <dd>{fmtDate(asset.warrantyDate)}</dd>
         <dt className="text-muted-foreground">Created</dt>
-        <dd>{asset.createdAt}</dd>
+        <dd>{fmtDate(asset.createdAt)}</dd>
       </dl>
 
       <div className="max-w-sm">

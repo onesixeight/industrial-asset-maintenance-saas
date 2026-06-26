@@ -7,6 +7,7 @@ import type { InspectionResponse } from "@iam/shared";
 import { inspectionsApi } from "@/lib/api/inspections";
 import { assetsApi } from "@/lib/api/assets";
 import { templatesApi } from "@/lib/api/inspections";
+import { fmtDate } from "@/lib/format";
 import { Button } from "@/components/button";
 import { Select } from "@/components/select";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
@@ -43,7 +44,7 @@ export default function InspectionsPage() {
     { key: "asset", header: "Asset", render: (r) => assetName(r.assetId) },
     { key: "template", header: "Template", render: (r) => tplName(r.templateId) },
     { key: "passed", header: "Result", render: (r) => <PassedBadge passed={r.passed} /> },
-    { key: "createdAt", header: "Date" },
+    { key: "createdAt", header: "Date", render: (r) => fmtDate(r.createdAt) },
     {
       key: "actions",
       header: "",

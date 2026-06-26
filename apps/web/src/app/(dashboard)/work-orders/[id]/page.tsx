@@ -8,6 +8,7 @@ import { workOrdersApi } from "@/lib/api/work-orders";
 import { partsApi, workOrderPartsApi } from "@/lib/api/parts";
 import { usersApi } from "@/lib/api/reference";
 import { useAuth } from "@/lib/auth/hooks";
+import { fmtDate } from "@/lib/format";
 import { ALLOWED_TRANSITIONS } from "@/lib/work-orders/transitions";
 import { Button } from "@/components/button";
 import { StatusBadge } from "@/components/status-badge";
@@ -128,11 +129,11 @@ export default function WorkOrderDetailPage() {
         <dt className="text-muted-foreground">Description</dt>
         <dd>{wo.description ?? "—"}</dd>
         <dt className="text-muted-foreground">Due date</dt>
-        <dd>{wo.dueDate ?? "—"}</dd>
+        <dd>{fmtDate(wo.dueDate)}</dd>
         <dt className="text-muted-foreground">Completed at</dt>
-        <dd>{wo.completedAt ?? "—"}</dd>
+        <dd>{fmtDate(wo.completedAt)}</dd>
         <dt className="text-muted-foreground">Created</dt>
-        <dd>{wo.createdAt}</dd>
+        <dd>{fmtDate(wo.createdAt)}</dd>
       </dl>
 
       <div className="flex flex-col gap-2">

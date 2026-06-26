@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { templatesApi } from "@/lib/api/inspections";
 import { useAuth } from "@/lib/auth/hooks";
+import { fmtDate } from "@/lib/format";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/button";
 import { FormField } from "@/components/form-field";
@@ -75,7 +76,7 @@ export default function TemplatesPage() {
   const columns: DataTableColumn<TemplateResponse>[] = [
     { key: "name", header: "Name" },
     { key: "items", header: "Items", render: (r) => String(r.items.length) },
-    { key: "createdAt", header: "Created" },
+    { key: "createdAt", header: "Created", render: (r) => fmtDate(r.createdAt) },
     {
       key: "actions",
       header: "",

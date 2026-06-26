@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { inspectionsApi, templatesApi } from "@/lib/api/inspections";
+import { fmtDate } from "@/lib/format";
 import { PassedBadge } from "@/components/passed-badge";
 
 export default function InspectionDetailPage() {
@@ -37,7 +38,7 @@ export default function InspectionDetailPage() {
         <dt className="text-muted-foreground">Inspector</dt>
         <dd>{insp.inspectedById}</dd>
         <dt className="text-muted-foreground">Date</dt>
-        <dd>{insp.createdAt}</dd>
+        <dd>{fmtDate(insp.createdAt)}</dd>
         <dt className="text-muted-foreground">Notes</dt>
         <dd>{insp.notes ?? "—"}</dd>
       </dl>

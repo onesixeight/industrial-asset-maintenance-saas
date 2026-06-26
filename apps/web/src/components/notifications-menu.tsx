@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notificationsApi } from "@/lib/api/notifications";
 import { useAuth } from "@/lib/auth/hooks";
@@ -9,12 +9,33 @@ import { useAuth } from "@/lib/auth/hooks";
  * Header bell with an unread badge and a dropdown of recent notifications.
  * The unread-count query polls every 60s (exec spec §3.6); the list query is
  * fetched on dropdown open only (no interval). "Mark all read" invalidates
- * both so the badge updates immediately.
+ * both so the badge updates immediately. The dropdown closes on outside click
+ * or Escape.
  */
 export function NotificationsMenu() {
   const { status } = useAuth();
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click or Escape — standard dropdown behavior.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   const countQuery = useQuery({
     queryKey: ["notifications-unread"],
@@ -48,7 +69,7 @@ export function NotificationsMenu() {
   const unread = countQuery.data?.count ?? 0;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={rootRef}>
       <button
         type="button"
         className="relative rounded-[var(--radius)] border border-border bg-background px-3 py-1.5 text-sm hover:bg-muted"
