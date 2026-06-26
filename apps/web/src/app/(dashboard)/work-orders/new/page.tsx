@@ -85,7 +85,8 @@ export default function NewWorkOrderPage() {
         />
         <FormField
           id="dueDate"
-          label="Due date (optional, ISO)"
+          label="Due date (optional)"
+          type="date"
           error={form.formState.errors.dueDate?.message}
           {...form.register("dueDate")}
         />

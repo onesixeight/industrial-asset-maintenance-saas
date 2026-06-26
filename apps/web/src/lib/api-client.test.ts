@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { apiFetch } from "./api-client";
+import { apiFetch, apiJson, type ApiError } from "./api-client";
 import { useAuthStore } from "./auth/store";
 
 const ok = (b: unknown, status = 200) =>
@@ -45,5 +45,38 @@ describe("apiFetch", () => {
     const res = await apiFetch("/api/anything");
     expect(res.status).toBe(401);
     expect(useAuthStore.getState().accessToken).toBeNull();
+  });
+});
+
+describe("apiJson error propagation", () => {
+  it("exposes the server error code from the JSON body (e.g. MUST_CHANGE_PASSWORD)", async () => {
+    // Nest serializes ForbiddenException({code}) as {statusCode, message:{code}}.
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(JSON.stringify({ statusCode: 403, message: { code: "MUST_CHANGE_PASSWORD" } }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    await expect(apiJson("/api/auth/login")).rejects.toMatchObject({
+      status: 403,
+      code: "MUST_CHANGE_PASSWORD",
+    } satisfies Partial<ApiError>);
+  });
+
+  it("exposes a top-level code field when the server returns one", async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(JSON.stringify({ code: "CONFLICT", message: "duplicate" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    await expect(apiJson("/api/x")).rejects.toMatchObject({ status: 409, code: "CONFLICT" });
+  });
+
+  it("falls back to status-only error for non-JSON bodies", async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response("not json", { status: 500 }),
+    );
+    await expect(apiJson("/api/x")).rejects.toMatchObject({ status: 500 });
   });
 });

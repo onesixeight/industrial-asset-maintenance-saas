@@ -10,6 +10,7 @@ import { categoriesApi } from "@/lib/api/reference";
 import { Button } from "@/components/button";
 import { Select } from "@/components/select";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
+import { AssetStatusBadge } from "@/components/asset-status-badge";
 import type { AssetResponse } from "@iam/shared";
 
 const STATUSES: { value: string; label: string }[] = [
@@ -42,7 +43,7 @@ export default function AssetsPage() {
   const columns: DataTableColumn<AssetResponse>[] = [
     { key: "name", header: "Name" },
     { key: "serialNumber", header: "Serial", render: (r) => r.serialNumber ?? "—" },
-    { key: "status", header: "Status" },
+    { key: "status", header: "Status", render: (r) => <AssetStatusBadge status={r.status} /> },
     {
       key: "actions",
       header: "",

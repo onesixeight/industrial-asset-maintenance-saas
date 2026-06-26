@@ -70,13 +70,15 @@ export default function NewAssetPage() {
         />
         <FormField
           id="purchaseDate"
-          label="Purchase date (optional, ISO)"
+          label="Purchase date (optional)"
+          type="date"
           error={form.formState.errors.purchaseDate?.message}
           {...form.register("purchaseDate")}
         />
         <FormField
           id="warrantyDate"
-          label="Warranty date (optional, ISO)"
+          label="Warranty date (optional)"
+          type="date"
           error={form.formState.errors.warrantyDate?.message}
           {...form.register("warrantyDate")}
         />

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { assetsApi } from "@/lib/api/assets";
 import { useAuth } from "@/lib/auth/hooks";
 import { fmtDate } from "@/lib/format";
+import { AssetStatusBadge } from "@/components/asset-status-badge";
 import { Button } from "@/components/button";
 import { QrCodeDisplay } from "@/components/qr-code-display";
 
@@ -60,7 +61,7 @@ export default function AssetDetailPage() {
         <dt className="text-muted-foreground">Serial</dt>
         <dd>{asset.serialNumber ?? "—"}</dd>
         <dt className="text-muted-foreground">Status</dt>
-        <dd>{asset.status}</dd>
+        <dd><AssetStatusBadge status={asset.status} /></dd>
         <dt className="text-muted-foreground">Description</dt>
         <dd>{asset.description ?? "—"}</dd>
         <dt className="text-muted-foreground">Purchase date</dt>

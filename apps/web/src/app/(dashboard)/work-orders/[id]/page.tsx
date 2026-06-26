@@ -8,10 +8,11 @@ import { workOrdersApi } from "@/lib/api/work-orders";
 import { partsApi, workOrderPartsApi } from "@/lib/api/parts";
 import { usersApi } from "@/lib/api/reference";
 import { useAuth } from "@/lib/auth/hooks";
-import { fmtDate } from "@/lib/format";
+import { fmtDate, fmtEnum } from "@/lib/format";
 import { ALLOWED_TRANSITIONS } from "@/lib/work-orders/transitions";
 import { Button } from "@/components/button";
 import { StatusBadge } from "@/components/status-badge";
+import { PriorityBadge } from "@/components/priority-badge";
 import { Select } from "@/components/select";
 
 export default function WorkOrderDetailPage() {
@@ -120,12 +121,14 @@ export default function WorkOrderDetailPage() {
 
       <div className="flex items-center gap-3">
         <StatusBadge status={wo.status} />
-        <span className="text-sm text-muted-foreground">Priority: {wo.priority}</span>
+        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          Priority: <PriorityBadge priority={wo.priority} />
+        </span>
       </div>
 
       <dl className="grid max-w-2xl grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-sm">
         <dt className="text-muted-foreground">Type</dt>
-        <dd>{wo.type}</dd>
+        <dd>{fmtEnum(wo.type)}</dd>
         <dt className="text-muted-foreground">Description</dt>
         <dd>{wo.description ?? "—"}</dd>
         <dt className="text-muted-foreground">Due date</dt>

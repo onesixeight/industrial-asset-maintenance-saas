@@ -12,3 +12,15 @@ export function fmtDate(iso: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString();
 }
+
+/**
+ * Format a raw enum string from the API for display: title-case, underscores
+ * become spaces. e.g. "in_progress" → "In progress", "corrective" → "Corrective".
+ */
+export function fmtEnum(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}

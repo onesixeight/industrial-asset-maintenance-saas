@@ -11,6 +11,7 @@ import { Button } from "@/components/button";
 import { Select } from "@/components/select";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { StatusBadge } from "@/components/status-badge";
+import { PriorityBadge } from "@/components/priority-badge";
 
 const STATUSES: { value: string; label: string }[] = [
   { value: "", label: "All statuses" },
@@ -57,7 +58,7 @@ export default function WorkOrdersPage() {
     { key: "title", header: "Title" },
     { key: "asset", header: "Asset", render: (r) => assetName(r.assetId) },
     { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
-    { key: "priority", header: "Priority" },
+    { key: "priority", header: "Priority", render: (r) => <PriorityBadge priority={r.priority} /> },
     { key: "assignee", header: "Assignee", render: (r) => userName(r.assignedToId) },
     {
       key: "actions",
