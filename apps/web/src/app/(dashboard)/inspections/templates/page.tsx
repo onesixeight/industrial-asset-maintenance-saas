@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/button";
 import { FormField } from "@/components/form-field";
 import { Modal } from "@/components/modal";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
 import type { TemplateResponse } from "@iam/shared";
 
@@ -28,6 +29,8 @@ export default function TemplatesPage() {
   const [name, setName] = useState("");
   const [items, setItems] = useState<string[]>([""]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<TemplateResponse | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -64,12 +67,13 @@ export default function TemplatesPage() {
   }
 
   async function onDelete(tpl: TemplateResponse) {
-    if (!confirm(`Delete template "${tpl.name}"?`)) return;
+    setDeleteError(null);
     try {
       await deleteMutation.mutateAsync(tpl.id);
+      setConfirmDelete(null);
     } catch (e) {
       const status = (e as { status?: number }).status;
-      alert(status === 409 ? "Template has submitted inspections; cannot delete." : "Could not delete.");
+      setDeleteError(status === 409 ? "Template has submitted inspections; cannot delete." : "Could not delete.");
     }
   }
 
@@ -85,7 +89,7 @@ export default function TemplatesPage() {
           <Button variant="ghost" onClick={() => openEdit(row)}>
             Edit
           </Button>
-          <Button variant="destructive" onClick={() => onDelete(row)}>
+          <Button variant="destructive" onClick={() => { setConfirmDelete(row); setDeleteError(null); }}>
             Delete
           </Button>
         </div>
@@ -93,7 +97,16 @@ export default function TemplatesPage() {
     },
   ];
 
-  if (!isManager) return null;
+  if (!isManager) {
+    return (
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold">Inspection templates</h1>
+        <p className="text-muted-foreground">
+          Access restricted. Only managers and admins can manage inspection templates.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -138,6 +151,16 @@ export default function TemplatesPage() {
           </Button>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete template"
+        message={deleteError ?? `Delete template "${confirmDelete?.name ?? ""}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        tone="destructive"
+        onConfirm={() => confirmDelete && onDelete(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

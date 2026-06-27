@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { inspectionsApi, templatesApi } from "@/lib/api/inspections";
 import { fmtDate } from "@/lib/format";
@@ -25,6 +26,9 @@ export default function InspectionDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Link href="/inspections" className="text-sm text-muted-foreground hover:text-foreground">
+        ← Back to inspections
+      </Link>
       <div className="flex items-center gap-4">
         <h1 className="text-2xl font-bold">Inspection</h1>
         <PassedBadge passed={insp.passed} />

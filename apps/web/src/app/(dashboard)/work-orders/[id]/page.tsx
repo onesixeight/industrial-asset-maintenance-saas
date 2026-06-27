@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import type { WorkOrderStatus } from "@iam/shared";
@@ -13,6 +14,7 @@ import { ALLOWED_TRANSITIONS } from "@/lib/work-orders/transitions";
 import { Button } from "@/components/button";
 import { StatusBadge } from "@/components/status-badge";
 import { PriorityBadge } from "@/components/priority-badge";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Select } from "@/components/select";
 
 export default function WorkOrderDetailPage() {
@@ -25,6 +27,7 @@ export default function WorkOrderDetailPage() {
   const [consumePartId, setConsumePartId] = useState("");
   const [consumeQty, setConsumeQty] = useState("1");
   const [partsError, setPartsError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const { data: wo, isLoading } = useQuery({
     queryKey: ["work-order", id],
@@ -95,7 +98,7 @@ export default function WorkOrderDetailPage() {
   });
 
   async function onDelete() {
-    if (!confirm("Soft-delete this work order? It will be hidden but its history is retained.")) return;
+    setConfirmOpen(false);
     try {
       await deleteMutation.mutateAsync();
     } catch (e) {
@@ -108,10 +111,13 @@ export default function WorkOrderDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Link href="/work-orders" className="text-sm text-muted-foreground hover:text-foreground">
+        ← Back to work orders
+      </Link>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{wo.title}</h1>
         {isManager ? (
-          <Button variant="destructive" onClick={onDelete} disabled={deleteMutation.isPending}>
+          <Button variant="destructive" onClick={() => setConfirmOpen(true)} disabled={deleteMutation.isPending}>
             {deleteMutation.isPending ? "Deleting…" : "Delete"}
           </Button>
         ) : null}
@@ -244,6 +250,16 @@ export default function WorkOrderDetailPage() {
         ) : null}
         {partsError ? <p className="text-sm text-destructive">{partsError}</p> : null}
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Delete work order"
+        message="Soft-delete this work order? It will be hidden but its history is retained."
+        confirmLabel="Delete"
+        tone="destructive"
+        onConfirm={onDelete}
+        onClose={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { locationsApi } from "@/lib/api/reference";
 import { Button } from "@/components/button";
 import { FormField } from "@/components/form-field";
 import { Modal } from "@/components/modal";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
 
 export default function LocationsPage() {
@@ -21,6 +22,8 @@ export default function LocationsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<LocationResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<LocationResponse | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const form = useForm<LocationRequest>({
     resolver: zodResolver(locationRequestSchema),
@@ -59,12 +62,13 @@ export default function LocationsPage() {
   }
 
   async function onDelete(row: LocationResponse) {
-    if (!confirm(`Delete "${row.name}"?`)) return;
+    setDeleteError(null);
     try {
       await deleteMutation.mutateAsync(row.id);
+      setConfirmDelete(null);
     } catch (e) {
       const status = (e as { status?: number }).status;
-      alert(status === 409 ? "Has assets; remove them first." : "Could not delete.");
+      setDeleteError(status === 409 ? "Has assets; remove them first." : "Could not delete.");
     }
   }
 
@@ -79,7 +83,7 @@ export default function LocationsPage() {
           <Button variant="ghost" onClick={() => openEdit(row)}>
             Edit
           </Button>
-          <Button variant="destructive" onClick={() => onDelete(row)}>
+          <Button variant="destructive" onClick={() => { setConfirmDelete(row); setDeleteError(null); }}>
             Delete
           </Button>
         </div>
@@ -108,6 +112,16 @@ export default function LocationsPage() {
           </Button>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title="Delete location"
+        message={deleteError ?? `Delete "${confirmDelete?.name ?? ""}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        tone="destructive"
+        onConfirm={() => confirmDelete && onDelete(confirmDelete)}
+        onClose={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

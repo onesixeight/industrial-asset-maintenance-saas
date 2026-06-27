@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { assetsApi } from "@/lib/api/assets";
@@ -8,6 +9,7 @@ import { useAuth } from "@/lib/auth/hooks";
 import { fmtDate } from "@/lib/format";
 import { AssetStatusBadge } from "@/components/asset-status-badge";
 import { Button } from "@/components/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { QrCodeDisplay } from "@/components/qr-code-display";
 
 export default function AssetDetailPage() {
@@ -19,6 +21,7 @@ export default function AssetDetailPage() {
   const canManage = user?.role === "admin" || user?.role === "manager";
   const [deleting, setDeleting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const { data: asset, isLoading } = useQuery({
     queryKey: ["asset", id],
@@ -27,7 +30,7 @@ export default function AssetDetailPage() {
 
   async function onDelete() {
     if (!asset) return;
-    if (!confirm(`Delete "${asset.name}"? This cannot be undone.`)) return;
+    setConfirmOpen(false);
     setDeleting(true);
     try {
       await assetsApi.remove(id);
@@ -46,10 +49,13 @@ export default function AssetDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Link href="/assets" className="text-sm text-muted-foreground hover:text-foreground">
+        ← Back to assets
+      </Link>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{asset.name}</h1>
         {canManage ? (
-          <Button variant="destructive" onClick={onDelete} disabled={deleting}>
+          <Button variant="destructive" onClick={() => setConfirmOpen(true)} disabled={deleting}>
             {deleting ? "Deleting…" : "Delete"}
           </Button>
         ) : null}
@@ -76,6 +82,16 @@ export default function AssetDetailPage() {
         <h2 className="mb-2 text-lg font-semibold">QR code</h2>
         <QrCodeDisplay assetId={asset.id} />
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Delete asset"
+        message={errorMsg ?? `Delete "${asset.name}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        tone="destructive"
+        onConfirm={onDelete}
+        onClose={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }
