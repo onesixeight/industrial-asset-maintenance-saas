@@ -445,3 +445,26 @@ the end of each phase. Mirrors the process defined in
 - No TODO/FIXME markers in the source. No other in-your-face bugs surfaced.
 
 **Status:** Phases 0–11 complete. The roadmap is finished.
+
+---
+
+## 2026-06-27 — Bugs + UX (Round 1 & 2)
+
+Two rounds of audit-driven fixes following a full codebase audit (2 Explore agents + manual browser review). All merged to `main`.
+
+### Round 1 (commit 2aba0f6) — bugs + badges + dates
+- **must-change-password flow bug:** `api-client.ts` `toError()` discarded the JSON body, so the `MUST_CHANGE_PASSWORD` 403 code never reached `auth-form` → admin-created users saw "You don't have permission" instead of the change-password redirect. Fixed by making `toError` async + reading `body.code`/`body.message`. 3 unit tests added.
+- **AssetStatusBadge + PriorityBadge:** statuses/priorities were raw enum text everywhere; new styled badges (Active/Maintenance/Retired, Low/Medium/High/Critical) applied to asset list+detail, WO list+detail.
+- **Native date inputs:** asset/WO date fields were plain text with "(optional, ISO)" — replaced with `<input type="date">`.
+- **Enum title-case:** new `fmtEnum()` helper; WO type now "Corrective" instead of `corrective`.
+
+### Round 2 (commit bb1d673) — accessibility + patterns
+- **Modal accessibility:** added `role="dialog"`, `aria-modal`, `aria-labelledby`, autofocus first field on open, Tab/Shift-Tab focus trap, focus restoration to the opener on close. Affects all create/edit flows (Locations, Categories, Users, Templates).
+- **render-during-render bug** in `parts/[id]`: state hydration via `setState` during render (React anti-pattern) → moved to `useEffect`. Added Cancel + Back buttons.
+- **ConfirmDialog component:** replaced native `confirm()`/`alert()` with a styled, accessible dialog on Locations, Categories, Templates, asset detail, WO detail deletes. (QR-rotate confirm left as-is — isolated, non-destructive.)
+- **Blank-page fixes:** templates page returned `null` for non-managers → "Access restricted" message.
+- **Back buttons** on all detail pages (asset, WO, inspection, part) — no more dead-ends on mobile.
+
+**Verified:** lint/typecheck/build green; api 231 + shared 16 + web 14 = 261 tests pass. Browser smoke-test confirmed AssetStatusBadge/PriorityBadge render, date inputs are `type="date"`, and the must-change-password code propagation works end-to-end (`wouldRedirectToChangePassword: true`).
+
+**Note on audit honesty:** I initially flagged a "parts lowStock pagination bug" (Round 1 task 5) but on attempting the test found the filter was already applied before pagination — my audit was wrong. Reverted the cosmetic-only change rather than shipping a fix for a non-existent bug.
