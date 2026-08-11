@@ -13,12 +13,14 @@
 **Decision:** Option 1 (config artifacts + documentation).
 
 **Rationale:**
+
 - The deliverable's user-facing value is "I can deploy this in minutes" — that's satisfied by correct configs + docs. Whether the deploy executes today or next week is environment-dependent, not a code decision.
-- Configs are **verifiable by inspection**: `render.yaml` references the real build/start commands; `vercel.json` has the correct rewrite rule; the seed runs locally and creates a login-able demo dataset.
+- Configs are **verifiable by inspection**: `render.yaml` references the real build/start commands; `vercel.json` defines the web build while `apps/web/next.config.ts` resolves the environment-based API rewrite; the seed runs locally and creates a login-able demo dataset.
 - Option 2 is impossible without credentials; pretending otherwise would be dishonest reporting.
 - The seed script is the single most useful artifact for portfolio reviewers — it lets anyone clone + `db:seed` + log in as `demo@acme.test` / `Password1` immediately, no deploy required.
 
 **Consequences:**
+
 - `render.yaml` + `vercel.json` live in the repo as the source of truth for deployment shape.
 - Upstash Redis and CORS origins are documented as manual steps (provider-specific, account-bound).
 - R2 is not included anywhere — per ADR 0005 the CSV report is generated synchronously; no object storage is in use.
