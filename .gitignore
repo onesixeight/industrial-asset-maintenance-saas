@@ -9,16 +9,21 @@ build/
 out/
 .turbo/
 
-# Env
-.env
-.env.local
-.env.*.local
+# Local interview guide (not for public repo)
+PROJECT_INTERVIEW_GUIDE.md
+
+# Env (ignore every runtime variant; keep only the documented template)
+.env*
 !.env.example
 
 # Logs
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Private key material
+*.pem
+*.key
 
 # OS
 .DS_Store
@@ -39,9 +44,12 @@ coverage/
 # Playwright
 test-results/
 playwright-report/
+.playwright-mcp/
 
 # Prisma
 apps/api/prisma/migrations/dev.db*
 
 # Temp
 *.tmp
+bugs-ux-*.png
+qr-code-*.png

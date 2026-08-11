@@ -1,5 +1,5 @@
-# Isolated Postgres on port 5433 for integration tests.
-# Started by CI and locally with: docker compose -f docker-compose.test.yml up -d
+# Isolated test-only services. Callers export DATABASE_URL_TEST and
+# REDIS_URL_TEST using the selected host ports before running application tests.
 services:
   postgres-test:
     image: postgres:16-alpine
@@ -9,9 +9,19 @@ services:
       POSTGRES_PASSWORD: iam
       POSTGRES_DB: iam_test
     ports:
-      - "5433:5432"
+      - "127.0.0.1:${TEST_POSTGRES_PORT:-5433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U iam -d iam_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis-test:
+    image: redis:7-alpine
+    container_name: iam-redis-test
+    ports:
+      - "127.0.0.1:${TEST_REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10

@@ -2,6 +2,16 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
+import { createRequire } from "node:module";
+
+const requireFromWeb = createRequire(new URL("./apps/web/package.json", import.meta.url));
+const nextCoreWebVitals = requireFromWeb("eslint-config-next/core-web-vitals");
+
+const webSourceFiles = ["apps/web/src/**/*.{ts,tsx}"];
+const scopedNextCoreWebVitals = nextCoreWebVitals.map((config) => ({
+  ...config,
+  files: webSourceFiles,
+}));
 
 /**
  * Root flat ESLint config for the monorepo.
@@ -12,6 +22,7 @@ export default tseslint.config(
   { ignores: ["**/dist/**", "**/.next/**", "**/.turbo/**", "**/node_modules/**", "**/coverage/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  ...scopedNextCoreWebVitals,
   prettier,
   {
     files: ["**/*.spec.ts", "**/*.test.ts"],
