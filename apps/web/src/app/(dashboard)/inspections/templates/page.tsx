@@ -12,29 +12,44 @@ import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
 import type { TemplateResponse } from "@iam/shared";
+import { QueryState } from "@/components/query-state";
+import { can } from "@/lib/auth/capabilities";
+
+const PAGE_SIZE = 20;
 
 export default function TemplatesPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const { user } = useAuth();
-  const isManager = user?.role === "admin" || user?.role === "manager";
+  const isManager = can(user?.role, "manageInspectionTemplate");
 
   useEffect(() => {
     if (user && !isManager) router.replace("/dashboard");
   }, [user, isManager, router]);
 
-  const { data, isLoading } = useQuery({ queryKey: ["templates"], queryFn: () => templatesApi.list() });
+  const [page, setPage] = useState(1);
+  const query = useQuery({
+    queryKey: ["templates", page],
+    queryFn: ({ signal }) =>
+      templatesApi.page(undefined, { page, pageSize: PAGE_SIZE }, signal),
+    enabled: isManager,
+  });
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TemplateResponse | null>(null);
   const [name, setName] = useState("");
   const [items, setItems] = useState<string[]>([""]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<TemplateResponse | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<TemplateResponse | null>(
+    null,
+  );
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = { name, items: items.filter(Boolean).map((label) => ({ label })) };
+      const payload = {
+        name,
+        items: items.filter(Boolean).map((label) => ({ label })),
+      };
       if (editing) return templatesApi.update(editing.id, payload);
       return templatesApi.create(payload);
     },
@@ -73,14 +88,22 @@ export default function TemplatesPage() {
       setConfirmDelete(null);
     } catch (e) {
       const status = (e as { status?: number }).status;
-      setDeleteError(status === 409 ? "Template has submitted inspections; cannot delete." : "Could not delete.");
+      setDeleteError(
+        status === 409
+          ? "Template has submitted inspections; cannot delete."
+          : "Could not delete.",
+      );
     }
   }
 
   const columns: DataTableColumn<TemplateResponse>[] = [
     { key: "name", header: "Name" },
     { key: "items", header: "Items", render: (r) => String(r.items.length) },
-    { key: "createdAt", header: "Created", render: (r) => fmtDate(r.createdAt) },
+    {
+      key: "createdAt",
+      header: "Created",
+      render: (r) => fmtDate(r.createdAt),
+    },
     {
       key: "actions",
       header: "",
@@ -89,7 +112,13 @@ export default function TemplatesPage() {
           <Button variant="ghost" onClick={() => openEdit(row)}>
             Edit
           </Button>
-          <Button variant="destructive" onClick={() => { setConfirmDelete(row); setDeleteError(null); }}>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              setConfirmDelete(row);
+              setDeleteError(null);
+            }}
+          >
             Delete
           </Button>
         </div>
@@ -102,7 +131,8 @@ export default function TemplatesPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold">Inspection templates</h1>
         <p className="text-muted-foreground">
-          Access restricted. Only managers and admins can manage inspection templates.
+          Access restricted. Only managers and admins can manage inspection
+          templates.
         </p>
       </div>
     );
@@ -114,9 +144,28 @@ export default function TemplatesPage() {
         <h1 className="text-2xl font-bold">Inspection templates</h1>
         <Button onClick={openNew}>New template</Button>
       </div>
-      {isLoading ? <p className="text-muted-foreground">Loading…</p> : <DataTable columns={columns} rows={data ?? []} empty="No templates yet." />}
+      <QueryState
+        isLoading={query.isLoading}
+        error={query.error}
+        onRetry={() => query.refetch()}
+        isEmpty={query.data?.total === 0}
+        emptyMessage="No templates yet."
+      >
+        <DataTable
+          columns={columns}
+          rows={query.data?.items ?? []}
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={query.data?.total ?? 0}
+          onPageChange={setPage}
+        />
+      </QueryState>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit template" : "New template"}>
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? "Edit template" : "New template"}
+      >
         <div className="flex flex-col gap-4">
           <FormField
             id="name"
@@ -129,24 +178,43 @@ export default function TemplatesPage() {
             {items.map((item, i) => (
               <div key={i} className="flex gap-2">
                 <input
+                  aria-label={`Checklist item ${i + 1}`}
                   value={item}
-                  onChange={(e) => setItems((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))}
+                  onChange={(e) =>
+                    setItems((prev) =>
+                      prev.map((v, j) => (j === i ? e.target.value : v)),
+                    )
+                  }
                   className="h-10 flex-1 rounded-[var(--radius)] border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
                   placeholder={`Item ${i + 1}`}
                 />
                 {items.length > 1 ? (
-                  <Button variant="ghost" onClick={() => setItems((prev) => prev.filter((_, j) => j !== i))}>
+                  <Button
+                    aria-label={`Remove checklist item ${i + 1}`}
+                    variant="ghost"
+                    onClick={() =>
+                      setItems((prev) => prev.filter((_, j) => j !== i))
+                    }
+                  >
                     ✕
                   </Button>
                 ) : null}
               </div>
             ))}
-            <Button variant="ghost" onClick={() => setItems((prev) => [...prev, ""])}>
+            <Button
+              variant="ghost"
+              onClick={() => setItems((prev) => [...prev, ""])}
+            >
               + Add item
             </Button>
           </div>
-          {errorMsg ? <p className="text-sm text-destructive">{errorMsg}</p> : null}
-          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !name || items.every((i) => !i)}>
+          {errorMsg ? (
+            <p className="text-sm text-destructive">{errorMsg}</p>
+          ) : null}
+          <Button
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending || !name || items.every((i) => !i)}
+          >
             {editing ? "Save" : "Create"}
           </Button>
         </div>
@@ -155,7 +223,10 @@ export default function TemplatesPage() {
       <ConfirmDialog
         open={!!confirmDelete}
         title="Delete template"
-        message={deleteError ?? `Delete template "${confirmDelete?.name ?? ""}"? This cannot be undone.`}
+        message={
+          deleteError ??
+          `Delete template "${confirmDelete?.name ?? ""}"? This cannot be undone.`
+        }
         confirmLabel="Delete"
         tone="destructive"
         onConfirm={() => confirmDelete && onDelete(confirmDelete)}

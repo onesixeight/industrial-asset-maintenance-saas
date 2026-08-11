@@ -3,20 +3,41 @@ import type {
   CategoryResponse,
   CreateUserRequest,
   ChangeRoleRequest,
+  ListQuery,
   LocationRequest,
   LocationResponse,
+  PaginatedResponse,
   UserRole,
   UserResponse,
 } from "@iam/shared";
 import { apiJson } from "../api-client";
+import { pageQuery, type PageRequest } from "./pagination";
 
 const base = (): string => process.env.NEXT_PUBLIC_API_URL ?? "/api";
+
+function qs(query: Partial<ListQuery>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== "")
+      params.set(key, String(value));
+  }
+  const encoded = params.toString();
+  return encoded ? `?${encoded}` : "";
+}
 
 // --- Locations -------------------------------------------------------------
 
 export const locationsApi = {
-  list: (search?: string) =>
-    apiJson<LocationResponse[]>(`${base()}/locations${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  list: (query: Partial<ListQuery> = {}, signal?: AbortSignal) =>
+    apiJson<PaginatedResponse<LocationResponse>>(
+      `${base()}/locations${qs(query)}`,
+      { signal },
+    ),
+  page: (
+    search: string | undefined,
+    request: PageRequest,
+    signal?: AbortSignal,
+  ) => locationsApi.list(pageQuery({ search }, request), signal),
   create: (input: LocationRequest) =>
     apiJson<LocationResponse>(`${base()}/locations`, {
       method: "POST",
@@ -36,8 +57,16 @@ export const locationsApi = {
 // --- Categories (mirror) ---------------------------------------------------
 
 export const categoriesApi = {
-  list: (search?: string) =>
-    apiJson<CategoryResponse[]>(`${base()}/categories${search ? `?search=${encodeURIComponent(search)}` : ""}`),
+  list: (query: Partial<ListQuery> = {}, signal?: AbortSignal) =>
+    apiJson<PaginatedResponse<CategoryResponse>>(
+      `${base()}/categories${qs(query)}`,
+      { signal },
+    ),
+  page: (
+    search: string | undefined,
+    request: PageRequest,
+    signal?: AbortSignal,
+  ) => categoriesApi.list(pageQuery({ search }, request), signal),
   create: (input: CategoryRequest) =>
     apiJson<CategoryResponse>(`${base()}/categories`, {
       method: "POST",
@@ -57,7 +86,14 @@ export const categoriesApi = {
 // --- Users -----------------------------------------------------------------
 
 export const usersApi = {
-  list: () => apiJson<UserResponse[]>(`${base()}/users`),
+  list: (query: Partial<ListQuery> = {}, signal?: AbortSignal) =>
+    apiJson<PaginatedResponse<UserResponse>>(`${base()}/users${qs(query)}`, {
+      signal,
+    }),
+  page: (request: PageRequest, signal?: AbortSignal, search?: string) =>
+    usersApi.list(pageQuery({ search }, request), signal),
+  get: (id: string, signal?: AbortSignal) =>
+    apiJson<UserResponse>(`${base()}/users/${id}`, { signal }),
   create: (input: CreateUserRequest) =>
     apiJson<UserResponse>(`${base()}/users`, {
       method: "POST",

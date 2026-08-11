@@ -1,6 +1,15 @@
-import { request, expect, type APIRequestContext, type Page } from "@playwright/test";
+import {
+  request,
+  expect,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
 
-export const API = "http://localhost:4000";
+const publicApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+
+export const API = publicApiUrl.startsWith("http")
+  ? new URL(publicApiUrl).origin
+  : (process.env.API_ORIGIN ?? "http://localhost:4000");
 
 export type Session = {
   accessToken: string;
@@ -22,7 +31,9 @@ export async function registerCompany(suffix: string): Promise<Session> {
       lastName: "User",
     },
   });
-  expect(res.ok(), `register failed: ${res.status()}`).toBeTruthy();
+  expect(res.status(), "register must create one company administrator").toBe(
+    201,
+  );
   const body = await res.json();
   await ctx.dispose();
   return body as Session;
@@ -42,7 +53,7 @@ export async function loginViaPage(
   const res = await page.request.post(`${API}/auth/login`, {
     data: { email, password },
   });
-  expect(res.ok(), `login failed: ${res.status()}`).toBeTruthy();
+  expect(res.status(), "login must return the authenticated session").toBe(200);
   return (await res.json()) as Session;
 }
 
@@ -55,13 +66,19 @@ export async function seedAsset(accessToken: string): Promise<string> {
   const headers = { Authorization: `Bearer ${accessToken}` };
   try {
     const loc = await ctx.post("/locations", { data: { name: "Wh" }, headers });
-    const cat = await ctx.post("/categories", { data: { name: "Pumps" }, headers });
+    const cat = await ctx.post("/categories", {
+      data: { name: "Pumps" },
+      headers,
+    });
+    expect(loc.status(), "location seed failed").toBe(201);
+    expect(cat.status(), "category seed failed").toBe(201);
     const locId = (await loc.json()).id;
     const catId = (await cat.json()).id;
     const asset = await ctx.post("/assets", {
       data: { name: "Pump 1", locationId: locId, categoryId: catId },
       headers,
     });
+    expect(asset.status(), "asset seed failed").toBe(201);
     return (await asset.json()).id;
   } finally {
     await ctx.dispose();
@@ -111,4 +128,26 @@ export async function loginThroughUi(
     await page.getByRole("button", { name: "Set new password" }).click();
     await page.waitForURL(/\/dashboard/, { timeout: 15_000 });
   }
+}
+
+/** Navigate through the responsive sidebar in both desktop and mobile layouts. */
+export async function navigateViaSidebar(
+  page: Page,
+  linkName: RegExp,
+  expectedUrl: RegExp,
+): Promise<void> {
+  const openNavigation = page.getByRole("button", { name: /open navigation/i });
+  const usesMobileNavigation = (page.viewportSize()?.width ?? 1024) < 1024;
+
+  if (usesMobileNavigation) {
+    await expect(openNavigation).toBeVisible();
+    await openNavigation.click();
+    const drawer = page.getByRole("dialog", { name: /mobile navigation/i });
+    await expect(drawer).toBeVisible();
+    await drawer.getByRole("link", { name: linkName }).click();
+  } else {
+    await page.getByRole("link", { name: linkName }).click();
+  }
+
+  await expect(page).toHaveURL(expectedUrl);
 }

@@ -3,7 +3,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
+import type { AssetStatus } from "@iam/shared";
 import { assetsApi } from "@/lib/api/assets";
 import { useAuth } from "@/lib/auth/hooks";
 import { fmtDate } from "@/lib/format";
@@ -11,6 +12,8 @@ import { AssetStatusBadge } from "@/components/asset-status-badge";
 import { Button } from "@/components/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { QrCodeDisplay } from "@/components/qr-code-display";
+import { QueryState } from "@/components/query-state";
+import { can } from "@/lib/auth/capabilities";
 
 export default function AssetDetailPage() {
   const params = useParams<{ id: string }>();
@@ -18,15 +21,18 @@ export default function AssetDetailPage() {
   const router = useRouter();
   const qc = useQueryClient();
   const { user } = useAuth();
-  const canManage = user?.role === "admin" || user?.role === "manager";
+  const canManage = can(user?.role, "manageAsset");
+  const canInspect = can(user?.role, "submitInspection");
   const [deleting, setDeleting] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const { data: asset, isLoading } = useQuery({
+  const assetQuery = useQuery({
     queryKey: ["asset", id],
-    queryFn: () => assetsApi.get(id),
+    queryFn: ({ signal }) => assetsApi.get(id, signal),
   });
+  const asset = assetQuery.data;
 
   async function onDelete() {
     if (!asset) return;
@@ -38,27 +44,77 @@ export default function AssetDetailPage() {
       router.push("/assets");
     } catch (e) {
       const status = (e as { status?: number }).status;
-      setErrorMsg(status === 409 ? "Asset has work orders or inspections; cannot delete." : (e as Error).message);
+      setErrorMsg(
+        status === 409
+          ? "Asset has work orders or inspections; cannot delete."
+          : (e as Error).message,
+      );
     } finally {
       setDeleting(false);
     }
   }
 
-  if (isLoading) return <p className="text-muted-foreground">Loading…</p>;
-  if (!asset) return <p>Asset not found.</p>;
+  async function onStatusSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!asset || updatingStatus) return;
+    const status = new FormData(event.currentTarget).get(
+      "status",
+    ) as AssetStatus;
+    setUpdatingStatus(true);
+    setErrorMsg(null);
+    try {
+      const updated = await assetsApi.updateStatus(id, { status });
+      qc.setQueryData(["asset", id], updated);
+      await qc.invalidateQueries({ queryKey: ["assets"] });
+    } catch (error) {
+      setErrorMsg((error as Error).message);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
+  if (!asset)
+    return (
+      <QueryState
+        isLoading={assetQuery.isLoading}
+        error={assetQuery.error}
+        onRetry={() => assetQuery.refetch()}
+        isEmpty={!assetQuery.isLoading && !assetQuery.error}
+        emptyMessage="Asset not found."
+      >
+        content
+      </QueryState>
+    );
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/assets" className="text-sm text-muted-foreground hover:text-foreground">
+      <Link
+        href="/assets"
+        className="text-sm text-muted-foreground hover:text-foreground"
+      >
         ← Back to assets
       </Link>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{asset.name}</h1>
-        {canManage ? (
-          <Button variant="destructive" onClick={() => setConfirmOpen(true)} disabled={deleting}>
-            {deleting ? "Deleting…" : "Delete"}
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {canInspect ? (
+            <Link
+              href={`/inspections/new?assetId=${asset.id}`}
+              className="inline-flex h-10 items-center justify-center rounded-[var(--radius)] bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90"
+            >
+              Inspect asset
+            </Link>
+          ) : null}
+          {canManage ? (
+            <Button
+              variant="destructive"
+              onClick={() => setConfirmOpen(true)}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {errorMsg ? <p className="text-sm text-destructive">{errorMsg}</p> : null}
@@ -67,7 +123,31 @@ export default function AssetDetailPage() {
         <dt className="text-muted-foreground">Serial</dt>
         <dd>{asset.serialNumber ?? "—"}</dd>
         <dt className="text-muted-foreground">Status</dt>
-        <dd><AssetStatusBadge status={asset.status} /></dd>
+        <dd className="flex flex-wrap items-center gap-3">
+          <AssetStatusBadge status={asset.status} />
+          {canManage ? (
+            <form className="flex items-center gap-2" onSubmit={onStatusSubmit}>
+              <label htmlFor="asset-status" className="sr-only">
+                Asset status
+              </label>
+              <select
+                id="asset-status"
+                name="status"
+                key={asset.status}
+                defaultValue={asset.status}
+                disabled={updatingStatus}
+                className="h-9 rounded-[var(--radius)] border border-input bg-background px-3 text-sm"
+              >
+                <option value="active">Active</option>
+                <option value="maintenance">Maintenance</option>
+                <option value="retired">Retired</option>
+              </select>
+              <Button type="submit" disabled={updatingStatus}>
+                {updatingStatus ? "Updating…" : "Update status"}
+              </Button>
+            </form>
+          ) : null}
+        </dd>
         <dt className="text-muted-foreground">Description</dt>
         <dd>{asset.description ?? "—"}</dd>
         <dt className="text-muted-foreground">Purchase date</dt>

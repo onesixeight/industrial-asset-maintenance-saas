@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import type { LoginRequest, RegisterRequest } from "@iam/shared";
 import { loginRequestSchema, registerRequestSchema } from "@iam/shared";
 import { useLogin, useRegister } from "@/lib/auth/hooks";
+import { validatedRelativePath } from "./auth-gate";
 import { Button } from "./button";
 import { FormField } from "./form-field";
 
@@ -30,33 +31,50 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   // errors is a union over both input shapes; index it loosely for the
   // register-only fields (company/firstName/lastName) that don't exist on LoginRequest.
-  const errors = form.formState.errors as Record<string, { message?: string } | undefined>;
+  const errors = form.formState.errors as Record<
+    string,
+    { message?: string } | undefined
+  >;
   const errMsg = (k: string): string | undefined => errors[k]?.message;
 
   async function onSubmit(values: RegisterRequest | LoginRequest) {
     setServerError(null);
+    const next = isRegister
+      ? "/dashboard"
+      : validatedRelativePath(
+          new URLSearchParams(window.location.search).get("next"),
+        );
     try {
       if (isRegister) await register.mutateAsync(values as RegisterRequest);
       else await login.mutateAsync(values as LoginRequest);
-      router.push("/dashboard");
+      router.push(next);
     } catch (e) {
       const err = e as { status?: number; code?: string };
       // Force-change gate: a 403 carrying MUST_CHANGE_PASSWORD routes the user
       // to the change-password page (prefilled email) rather than a generic 403.
-      if (!isRegister && err.status === 403 && err.code === "MUST_CHANGE_PASSWORD") {
+      if (
+        !isRegister &&
+        err.status === 403 &&
+        err.code === "MUST_CHANGE_PASSWORD"
+      ) {
         const email = (values as LoginRequest).email;
-        router.push(`/change-password?email=${encodeURIComponent(email)}`);
+        const params = new URLSearchParams({ email, next });
+        router.push(`/change-password?${params.toString()}`);
         return;
       }
       if (err.status === 401) setServerError("Invalid email or password.");
-      else if (err.status === 403) setServerError("You don't have permission to log in here.");
+      else if (err.status === 403)
+        setServerError("You don't have permission to log in here.");
       else if (err.status === 409) setServerError("Email already registered.");
       else setServerError("Something went wrong. Please try again.");
     }
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      className="flex flex-col gap-4"
+    >
       {isRegister ? (
         <FormField
           id="company"
@@ -95,7 +113,9 @@ export function AuthForm({ mode }: { mode: Mode }) {
         error={errMsg("password")}
         {...form.register("password")}
       />
-      {serverError ? <p className="text-sm text-destructive">{serverError}</p> : null}
+      {serverError ? (
+        <p className="text-sm text-destructive">{serverError}</p>
+      ) : null}
       <Button type="submit" disabled={form.formState.isSubmitting}>
         {isRegister ? "Create account" : "Log in"}
       </Button>

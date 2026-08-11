@@ -19,7 +19,7 @@ export function QrCodeDisplay({ assetId }: { assetId: string }) {
 
   const { data: svg, isLoading } = useQuery({
     queryKey: ["asset-qr", assetId],
-    queryFn: () => assetsApi.getQrSvg(assetId),
+    queryFn: ({ signal }) => assetsApi.getQrSvg(assetId, signal),
     enabled: canRotate, // only admin/manager can hit the QR endpoint
   });
 
@@ -43,7 +43,10 @@ export function QrCodeDisplay({ assetId }: { assetId: string }) {
   }
 
   async function onRotate() {
-    if (!confirm("Rotate the QR code? The old printed sticker will stop working.")) return;
+    if (
+      !confirm("Rotate the QR code? The old printed sticker will stop working.")
+    )
+      return;
     setRotating(true);
     try {
       await rotate.mutateAsync();
@@ -53,7 +56,11 @@ export function QrCodeDisplay({ assetId }: { assetId: string }) {
   }
 
   if (!canRotate) {
-    return <p className="text-sm text-muted-foreground">Ask an admin/manager to view or print the QR code.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        Ask an admin/manager to view or print the QR code.
+      </p>
+    );
   }
 
   return (

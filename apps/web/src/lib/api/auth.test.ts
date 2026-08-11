@@ -16,7 +16,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("auth api calls", () => {
   it("login posts credentials with credentials:include and returns AuthResponse", async () => {
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      OK({ user: { id: "u" }, accessToken: "a", refreshToken: "r", expiresIn: 900 }),
+      OK({ user: { id: "u" }, accessToken: "a", expiresIn: 900 }),
     );
     const res = await loginApi({ email: "a@b.test", password: "Password1" });
     expect(fetch).toHaveBeenCalledWith(
@@ -28,7 +28,7 @@ describe("auth api calls", () => {
 
   it("register posts the full register body", async () => {
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      OK({ user: { id: "u" }, accessToken: "a", refreshToken: "r", expiresIn: 900 }),
+      OK({ user: { id: "u" }, accessToken: "a", expiresIn: 900 }),
     );
     await registerApi({
       company: "Acme",
@@ -38,12 +38,32 @@ describe("auth api calls", () => {
       lastName: "B",
     });
     const [, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(JSON.parse(init.body)).toMatchObject({ company: "Acme", email: "a@b.test" });
+    expect(JSON.parse(init.body)).toMatchObject({
+      company: "Acme",
+      email: "a@b.test",
+    });
+  });
+
+  it("threads a caller AbortSignal into an auth request", async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      OK({ user: { id: "u" }, accessToken: "a", expiresIn: 900 }),
+    );
+    const controller = new AbortController();
+
+    await loginApi(
+      { email: "a@b.test", password: "Password1" },
+      controller.signal,
+    );
+
+    const [, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    controller.abort();
+    expect((init.signal as AbortSignal).aborted).toBe(true);
   });
 
   it("refresh sends no body and uses credentials:include", async () => {
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      OK({ accessToken: "a2", refreshToken: "r2", expiresIn: 900 }),
+      OK({ accessToken: "a2", expiresIn: 900 }),
     );
     const res = await refreshApi();
     expect(res.accessToken).toBe("a2");
