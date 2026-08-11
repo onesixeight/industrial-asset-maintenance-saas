@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
@@ -37,9 +38,11 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
 function makePrisma(overrides: Record<string, ReturnType<typeof vi.fn>> = {}) {
   const workOrder = {
     findMany: vi.fn().mockResolvedValue([]),
+    count: vi.fn().mockResolvedValue(0),
     findFirst: vi.fn().mockResolvedValue(null),
     create: vi.fn(),
     update: vi.fn(),
+    updateManyAndReturn: vi.fn(),
     ...overrides,
   };
   const asset = { findFirst: vi.fn().mockResolvedValue({ id: ASSET }) };
@@ -52,82 +55,193 @@ const techUser: JwtPayload = {
   sub: TECH,
   companyId: COMPANY,
   role: "technician",
+  ver: 0,
+  sid: "44444444-4444-4444-8444-444444444444",
   jti: "jti",
   typ: "access",
 };
-const managerUser: JwtPayload = { ...techUser, sub: OTHER_USER, role: "manager" };
+const managerUser: JwtPayload = {
+  ...techUser,
+  sub: OTHER_USER,
+  role: "manager",
+};
+const viewerUser: JwtPayload = { ...techUser, sub: OTHER_USER, role: "viewer" };
 
 describe("WorkOrdersService", () => {
   it("list excludes soft-deleted and filters by companyId", async () => {
     const findMany = vi.fn().mockResolvedValue([row()]);
-    const prisma = makePrisma({ findMany });
+    const prisma = makePrisma({
+      findMany,
+      count: vi.fn().mockResolvedValue(1),
+    });
     const svc = new WorkOrdersService(prisma);
     const out = await svc.list(COMPANY, { search: "", page: 1, limit: 50 });
-    expect(out).toHaveLength(1);
+    expect(out).toMatchObject({ page: 1, pageSize: 50, total: 1 });
+    expect(out.items).toHaveLength(1);
     expect(findMany).toHaveBeenCalled();
     const arg = findMany.mock.calls[0][0];
     expect(arg.where.deletedAt).toBeNull();
     expect(arg.where.companyId).toBe(COMPANY);
+    expect(arg.orderBy).toEqual([{ createdAt: "desc" }, { id: "desc" }]);
   });
 
   it("get throws NotFound when findFirst returns null (deleted / cross-tenant)", async () => {
     const prisma = makePrisma();
     const svc = new WorkOrdersService(prisma);
-    await expect(svc.get("wo-x", OTHER)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(svc.get("wo-x", OTHER)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it("create rejects a foreign-tenant asset (BadRequest)", async () => {
     const prisma = makePrisma();
-    (prisma.getClient() as never as { asset: { findFirst: ReturnType<typeof vi.fn> } }).asset.findFirst = vi.fn().mockResolvedValue(null);
+    (
+      prisma.getClient() as never as {
+        asset: { findFirst: ReturnType<typeof vi.fn> };
+      }
+    ).asset.findFirst = vi.fn().mockResolvedValue(null);
     const svc = new WorkOrdersService(prisma);
     await expect(
-      svc.create({ title: "X", type: "preventive", assetId: "foreign-asset", priority: "medium" }, COMPANY),
+      svc.create(
+        {
+          title: "X",
+          type: "preventive",
+          assetId: "foreign-asset",
+          priority: "medium",
+        },
+        COMPANY,
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("transition rejects open→completed (the §497 rule)", async () => {
     const prisma = makePrisma();
-    (prisma.getClient() as never as { workOrder: { findFirst: ReturnType<typeof vi.fn> } }).workOrder.findFirst = vi.fn().mockResolvedValue(row({ status: "open" }));
+    (
+      prisma.getClient() as never as {
+        workOrder: { findFirst: ReturnType<typeof vi.fn> };
+      }
+    ).workOrder.findFirst = vi.fn().mockResolvedValue(row({ status: "open" }));
     const svc = new WorkOrdersService(prisma);
-    await expect(svc.transition("wo-1", "completed", managerUser)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      svc.transition("wo-1", "completed", managerUser),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("transition sets completedAt when landing on completed", async () => {
-    const update = vi.fn().mockImplementation((args: { data: { status: string; completedAt: Date } }) =>
-      Promise.resolve(row({ status: args.data.status, completedAt: args.data.completedAt })),
-    );
-    const prisma = makePrisma({ update });
-    (prisma.getClient() as never as { workOrder: { findFirst: ReturnType<typeof vi.fn> } }).workOrder.findFirst = vi.fn().mockResolvedValue(row({ status: "in_progress" }));
+    const updateManyAndReturn = vi
+      .fn()
+      .mockImplementation(
+        (args: { data: { status: string; completedAt: Date } }) =>
+          Promise.resolve([
+            row({
+              status: args.data.status,
+              completedAt: args.data.completedAt,
+            }),
+          ]),
+      );
+    const prisma = makePrisma({ updateManyAndReturn });
+    (
+      prisma.getClient() as never as {
+        workOrder: { findFirst: ReturnType<typeof vi.fn> };
+      }
+    ).workOrder.findFirst = vi
+      .fn()
+      .mockResolvedValue(row({ status: "in_progress" }));
     const svc = new WorkOrdersService(prisma);
     const out = await svc.transition("wo-1", "completed", managerUser);
-    expect(update.mock.calls[0][0].data.completedAt).toBeInstanceOf(Date);
+    expect(updateManyAndReturn.mock.calls[0][0]).toMatchObject({
+      where: {
+        id: "wo-1",
+        companyId: COMPANY,
+        deletedAt: null,
+        status: "in_progress",
+      },
+      data: { status: "completed" },
+    });
+    expect(
+      updateManyAndReturn.mock.calls[0][0].data.completedAt,
+    ).toBeInstanceOf(Date);
     expect(out.status).toBe("completed");
+  });
+
+  it("transition denies viewers even when the work order is in their tenant", async () => {
+    const updateManyAndReturn = vi.fn();
+    const prisma = makePrisma({ updateManyAndReturn });
+    (
+      prisma.getClient() as never as {
+        workOrder: { findFirst: ReturnType<typeof vi.fn> };
+      }
+    ).workOrder.findFirst = vi.fn().mockResolvedValue(row({ status: "open" }));
+    const svc = new WorkOrdersService(prisma);
+
+    await expect(
+      svc.transition("wo-1", "in_progress", viewerUser),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(updateManyAndReturn).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 when another status transition wins the compare-and-set", async () => {
+    const updateManyAndReturn = vi.fn().mockResolvedValue([]);
+    const prisma = makePrisma({ updateManyAndReturn });
+    (
+      prisma.getClient() as never as {
+        workOrder: { findFirst: ReturnType<typeof vi.fn> };
+      }
+    ).workOrder.findFirst = vi
+      .fn()
+      .mockResolvedValue(row({ status: "in_progress" }));
+    const svc = new WorkOrdersService(prisma);
+
+    await expect(
+      svc.transition("wo-1", "on_hold", managerUser),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it("transition 403 when technician not the assignee", async () => {
     const prisma = makePrisma();
-    (prisma.getClient() as never as { workOrder: { findFirst: ReturnType<typeof vi.fn> } }).workOrder.findFirst = vi.fn().mockResolvedValue(row({ status: "open", assignedToId: OTHER_USER }));
+    (
+      prisma.getClient() as never as {
+        workOrder: { findFirst: ReturnType<typeof vi.fn> };
+      }
+    ).workOrder.findFirst = vi
+      .fn()
+      .mockResolvedValue(row({ status: "open", assignedToId: OTHER_USER }));
     const svc = new WorkOrdersService(prisma);
-    await expect(svc.transition("wo-1", "in_progress", techUser)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      svc.transition("wo-1", "in_progress", techUser),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it("transition allows technician on their own assigned WO", async () => {
-    const update = vi.fn().mockResolvedValue(row({ status: "in_progress", assignedToId: TECH }));
-    const prisma = makePrisma({ update });
-    (prisma.getClient() as never as { workOrder: { findFirst: ReturnType<typeof vi.fn> } }).workOrder.findFirst = vi.fn().mockResolvedValue(row({ status: "open", assignedToId: TECH }));
+    const updateManyAndReturn = vi
+      .fn()
+      .mockResolvedValue([row({ status: "in_progress", assignedToId: TECH })]);
+    const prisma = makePrisma({ updateManyAndReturn });
+    (
+      prisma.getClient() as never as {
+        workOrder: { findFirst: ReturnType<typeof vi.fn> };
+      }
+    ).workOrder.findFirst = vi
+      .fn()
+      .mockResolvedValue(row({ status: "open", assignedToId: TECH }));
     const svc = new WorkOrdersService(prisma);
     const out = await svc.transition("wo-1", "in_progress", techUser);
     expect(out.status).toBe("in_progress");
+    expect(updateManyAndReturn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ assignedToId: TECH }),
+      }),
+    );
   });
 
   it("soft-delete sets deletedAt", async () => {
     const update = vi.fn().mockResolvedValue(undefined);
     const prisma = makePrisma({ update });
-    (prisma.getClient() as never as { workOrder: { findFirst: ReturnType<typeof vi.fn> } }).workOrder.findFirst = vi.fn().mockResolvedValue(row());
+    (
+      prisma.getClient() as never as {
+        workOrder: { findFirst: ReturnType<typeof vi.fn> };
+      }
+    ).workOrder.findFirst = vi.fn().mockResolvedValue(row());
     const svc = new WorkOrdersService(prisma);
     await svc.remove("wo-1", COMPANY);
     expect(update).toHaveBeenCalled();

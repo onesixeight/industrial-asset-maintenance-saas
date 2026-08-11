@@ -13,12 +13,14 @@ import {
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import type {
+  AdjustPartRequest,
   CreatePartRequest,
   JwtPayload,
   PartFilters,
   UpdatePartRequest,
 } from "@iam/shared";
 import {
+  adjustPartRequestSchema,
   createPartRequestSchema,
   partFiltersSchema,
   updatePartRequestSchema,
@@ -49,6 +51,16 @@ export class PartsController {
     return this.parts.list(user.companyId, q);
   }
 
+  @Get("archived")
+  @UseGuards(RolesGuard)
+  @Roles("admin", "manager")
+  listArchived(
+    @CurrentUser() user: JwtPayload,
+    @Query(new ZodValidationPipe(partFiltersSchema)) q: PartFilters,
+  ) {
+    return this.parts.listArchived(user.companyId, q);
+  }
+
   @Get(":id")
   get(@CurrentUser() user: JwtPayload, @Param("id") id: string) {
     return this.parts.get(id, user.companyId);
@@ -60,9 +72,31 @@ export class PartsController {
   @HttpCode(HttpStatus.CREATED)
   create(
     @CurrentUser() user: JwtPayload,
-    @Body(new ZodValidationPipe(createPartRequestSchema)) body: CreatePartRequest,
+    @Body(new ZodValidationPipe(createPartRequestSchema))
+    body: CreatePartRequest,
   ) {
-    return this.parts.create(body, user.companyId);
+    return this.parts.create(body, user);
+  }
+
+  @Post(":id/restore")
+  @UseGuards(RolesGuard)
+  @Roles("admin", "manager")
+  @HttpCode(HttpStatus.OK)
+  restore(@CurrentUser() user: JwtPayload, @Param("id") id: string) {
+    return this.parts.restore(id, user.companyId);
+  }
+
+  @Post(":id/adjustments")
+  @UseGuards(RolesGuard)
+  @Roles("admin", "manager")
+  @HttpCode(HttpStatus.CREATED)
+  adjust(
+    @CurrentUser() user: JwtPayload,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(adjustPartRequestSchema))
+    body: AdjustPartRequest,
+  ) {
+    return this.parts.adjust(id, body, user);
   }
 
   @Patch(":id")
@@ -71,7 +105,8 @@ export class PartsController {
   update(
     @CurrentUser() user: JwtPayload,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(updatePartRequestSchema)) body: UpdatePartRequest,
+    @Body(new ZodValidationPipe(updatePartRequestSchema))
+    body: UpdatePartRequest,
   ) {
     return this.parts.update(id, body, user.companyId);
   }

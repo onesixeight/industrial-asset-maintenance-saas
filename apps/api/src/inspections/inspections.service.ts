@@ -5,14 +5,18 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import type {
   CreateTemplateRequest,
   InspectionFilters,
   InspectionResponse,
+  ListQuery,
+  PaginatedResponse,
   SubmitInspectionRequest,
   TemplateResponse,
   UpdateTemplateRequest,
 } from "@iam/shared";
+import { deleteWithForeignKeyConflict } from "../common/prisma-delete";
 import { PrismaService } from "../prisma";
 import { validateResults } from "./compute-passed";
 
@@ -28,15 +32,31 @@ export class InspectionsService {
 
   // --- Templates -----------------------------------------------------------
 
-  async listTemplates(companyId: string, search?: string): Promise<TemplateResponse[]> {
-    const rows = await this.prisma.getClient().inspectionTemplate.findMany({
-      where: {
-        companyId,
-        name: search ? { contains: search, mode: "insensitive" } : undefined,
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    return rows.map((t) => this.toTemplateResponse(t));
+  async listTemplates(
+    companyId: string,
+    query: ListQuery,
+  ): Promise<PaginatedResponse<TemplateResponse>> {
+    const where: Prisma.InspectionTemplateWhereInput = {
+      companyId,
+      name: query.search
+        ? { contains: query.search, mode: "insensitive" }
+        : undefined,
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.getClient().inspectionTemplate.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.getClient().inspectionTemplate.count({ where }),
+    ]);
+    return {
+      items: rows.map((t) => this.toTemplateResponse(t)),
+      page: query.page,
+      pageSize: query.limit,
+      total,
+    };
   }
 
   async getTemplate(id: string, companyId: string): Promise<TemplateResponse> {
@@ -47,7 +67,10 @@ export class InspectionsService {
     return this.toTemplateResponse(tpl);
   }
 
-  async createTemplate(input: CreateTemplateRequest, companyId: string): Promise<TemplateResponse> {
+  async createTemplate(
+    input: CreateTemplateRequest,
+    companyId: string,
+  ): Promise<TemplateResponse> {
     const items = input.items.map((it) => ({
       id: randomUUID(),
       label: it.label,
@@ -74,6 +97,7 @@ export class InspectionsService {
         type: "pass_fail" as const,
       }));
     }
+    data.version = { increment: 1 };
     const row = await this.prisma.getClient().inspectionTemplate.update({
       where: { id },
       data,
@@ -87,29 +111,50 @@ export class InspectionsService {
       where: { templateId: id, companyId },
     });
     if (count > 0) {
-      throw new ConflictException("Template has submitted inspections; cannot delete");
+      throw new ConflictException(
+        "Template has submitted inspections; cannot delete",
+      );
     }
-    await this.prisma.getClient().inspectionTemplate.delete({ where: { id } });
+    await deleteWithForeignKeyConflict(
+      () =>
+        this.prisma.getClient().inspectionTemplate.delete({ where: { id } }),
+      "Template has submitted inspections; cannot delete",
+    );
   }
 
   // --- Inspections ---------------------------------------------------------
 
-  async listInspections(companyId: string, filters: InspectionFilters): Promise<InspectionResponse[]> {
-    const rows = await this.prisma.getClient().inspection.findMany({
-      where: {
-        companyId,
-        assetId: filters.assetId,
-        templateId: filters.templateId,
-        passed: filters.passed,
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (filters.page - 1) * filters.limit,
-      take: filters.limit,
-    });
-    return rows.map((r) => this.toInspectionResponse(r));
+  async listInspections(
+    companyId: string,
+    filters: InspectionFilters,
+  ): Promise<PaginatedResponse<InspectionResponse>> {
+    const where: Prisma.InspectionWhereInput = {
+      companyId,
+      assetId: filters.assetId,
+      templateId: filters.templateId,
+      passed: filters.passed,
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.getClient().inspection.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (filters.page - 1) * filters.limit,
+        take: filters.limit,
+      }),
+      this.prisma.getClient().inspection.count({ where }),
+    ]);
+    return {
+      items: rows.map((r) => this.toInspectionResponse(r)),
+      page: filters.page,
+      pageSize: filters.limit,
+      total,
+    };
   }
 
-  async getInspection(id: string, companyId: string): Promise<InspectionResponse> {
+  async getInspection(
+    id: string,
+    companyId: string,
+  ): Promise<InspectionResponse> {
     const insp = await this.prisma.getClient().inspection.findFirst({
       where: { id, companyId },
     });
@@ -122,32 +167,55 @@ export class InspectionsService {
     userId: string,
     companyId: string,
   ): Promise<InspectionResponse> {
-    // Validate asset + template belong to the caller's company.
-    const [asset, template] = await Promise.all([
-      this.prisma.getClient().asset.findFirst({ where: { id: input.assetId, companyId } }),
-      this.prisma.getClient().inspectionTemplate.findFirst({ where: { id: input.templateId, companyId } }),
-    ]);
-    if (!asset) throw new NotFoundException("Asset not found");
-    if (!template) throw new NotFoundException("Template not found");
+    return this.prisma.getClient().$transaction(async (tx) => {
+      const asset = await tx.asset.findFirst({
+        where: { id: input.assetId, companyId },
+      });
+      if (!asset) throw new NotFoundException("Asset not found");
 
-    const templateItemIds = (template.items as { id: string }[]).map((it) => it.id);
-    const validation = validateResults(templateItemIds, input.results);
-    if (!validation.ok) {
-      throw new BadRequestException(`Invalid inspection results: ${validation.reason}`);
-    }
+      // A shared row lock linearizes submission with template edits. The
+      // inspection always stores exactly the version it was validated against.
+      const [template] = await tx.$queryRaw<
+        Array<{
+          id: string;
+          name: string;
+          items: Prisma.JsonValue;
+          version: number;
+        }>
+      >`
+        SELECT id, name, items, version
+        FROM "InspectionTemplate"
+        WHERE id = ${input.templateId} AND "companyId" = ${companyId}
+        FOR SHARE
+      `;
+      if (!template) throw new NotFoundException("Template not found");
 
-    const row = await this.prisma.getClient().inspection.create({
-      data: {
-        assetId: input.assetId,
-        templateId: input.templateId,
-        results: input.results,
-        passed: validation.passed,
-        notes: input.notes ?? null,
-        inspectedById: userId,
-        companyId,
-      },
+      const items = template.items as TemplateResponse["items"];
+      const validation = validateResults(
+        items.map((item) => item.id),
+        input.results,
+      );
+      if (!validation.ok) {
+        throw new BadRequestException(
+          `Invalid inspection results: ${validation.reason}`,
+        );
+      }
+
+      const row = await tx.inspection.create({
+        data: {
+          assetId: input.assetId,
+          templateId: input.templateId,
+          templateVersion: template.version,
+          templateSnapshot: { name: template.name, items },
+          results: input.results,
+          passed: validation.passed,
+          notes: input.notes ?? null,
+          inspectedById: userId,
+          companyId,
+        },
+      });
+      return this.toInspectionResponse(row);
     });
-    return this.toInspectionResponse(row);
   }
 
   // --- mappers -------------------------------------------------------------
@@ -156,12 +224,14 @@ export class InspectionsService {
     id: string;
     name: string;
     items: unknown;
+    version: number;
     companyId: string;
     createdAt: Date;
   }): TemplateResponse {
     return {
       id: t.id,
       name: t.name,
+      version: t.version,
       items: t.items as TemplateResponse["items"],
       companyId: t.companyId,
       createdAt: t.createdAt.toISOString(),
@@ -172,6 +242,8 @@ export class InspectionsService {
     id: string;
     assetId: string;
     templateId: string;
+    templateVersion: number;
+    templateSnapshot: unknown;
     results: unknown;
     passed: boolean;
     notes: string | null;
@@ -183,6 +255,9 @@ export class InspectionsService {
       id: i.id,
       assetId: i.assetId,
       templateId: i.templateId,
+      templateVersion: i.templateVersion,
+      templateSnapshot:
+        i.templateSnapshot as InspectionResponse["templateSnapshot"],
       results: i.results as InspectionResponse["results"],
       passed: i.passed,
       notes: i.notes,

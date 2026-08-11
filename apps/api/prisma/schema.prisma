@@ -49,6 +49,13 @@ enum ReportStatus {
   failed
 }
 
+enum InventoryMovementKind {
+  initial_stock
+  adjustment
+  consumption
+  restock
+}
+
 model Company {
   id            String   @id @default(uuid())
   name          String
@@ -62,6 +69,7 @@ model Company {
   templates     InspectionTemplate[]
   parts         Part[]
   reports       Report[]
+  inventoryMovements InventoryMovement[]
   // NOTE: Notification relates to User only (PROJECT_PLAN §6). The plan's
   // Company.notifications back-relation had no opposite field on Notification
   // and was therefore invalid; dropped here. Tracked in DEVELOPMENT_LOG.
@@ -75,12 +83,16 @@ model User {
   lastName       String
   role           UserRole @default(viewer)
   mustChangePassword Boolean @default(false)
+  sessionVersion Int      @default(0)
   companyId      String
   company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   assignedOrders WorkOrder[] @relation("AssignedTo")
   inspections    Inspection[]
   notifications  Notification[]
+  inventoryMovements InventoryMovement[] @relation("InventoryMovementActor")
   createdAt      DateTime @default(now())
+
+  @@index([companyId, role])
 }
 
 model Location {
@@ -120,6 +132,9 @@ model Asset {
   inspections  Inspection[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  @@index([companyId, status])
+  @@index([companyId, createdAt])
 }
 
 model WorkOrder {
@@ -138,15 +153,21 @@ model WorkOrder {
   companyId    String
   company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   parts        WorkOrderPart[] @relation("WorkOrderParts")
+  inventoryMovements InventoryMovement[]
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   deletedAt    DateTime?
+
+  @@index([companyId, status, deletedAt])
+  @@index([companyId, createdAt])
+  @@index([companyId, assignedToId, status, deletedAt])
 }
 
 model InspectionTemplate {
   id          String   @id @default(uuid())
   name        String
   items       Json
+  version     Int      @default(1)
   companyId   String
   company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   inspections Inspection[]
@@ -159,6 +180,8 @@ model Inspection {
   asset         Asset              @relation(fields: [assetId], references: [id])
   templateId    String
   template      InspectionTemplate @relation(fields: [templateId], references: [id])
+  templateVersion Int
+  templateSnapshot Json
   results       Json
   passed        Boolean
   notes         String?
@@ -167,6 +190,10 @@ model Inspection {
   companyId     String
   company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdAt     DateTime           @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([companyId, assetId, createdAt])
+  @@index([companyId, templateId, createdAt])
 }
 
 model Part {
@@ -179,10 +206,13 @@ model Part {
   companyId      String
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   workOrderParts WorkOrderPart[]
+  inventoryMovements InventoryMovement[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
 
   @@unique([companyId, sku])
+  @@index([companyId, deletedAt, createdAt])
 }
 
 model WorkOrderPart {
@@ -190,11 +220,31 @@ model WorkOrderPart {
   workOrderId String
   workOrder   WorkOrder @relation("WorkOrderParts", fields: [workOrderId], references: [id], onDelete: Cascade)
   partId      String
-  part        Part      @relation(fields: [partId], references: [id], onDelete: Cascade)
+  part        Part      @relation(fields: [partId], references: [id], onDelete: Restrict)
   quantity    Int
   createdAt   DateTime  @default(now())
 
   @@unique([workOrderId, partId])
+}
+
+model InventoryMovement {
+  id          String                @id @default(uuid())
+  partId      String
+  part        Part                  @relation(fields: [partId], references: [id], onDelete: Restrict)
+  workOrderId String?
+  workOrder   WorkOrder?            @relation(fields: [workOrderId], references: [id], onDelete: Restrict)
+  actorId     String
+  actor       User                  @relation("InventoryMovementActor", fields: [actorId], references: [id], onDelete: Restrict)
+  companyId   String
+  company     Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  delta       Int
+  kind        InventoryMovementKind
+  reason      String
+  createdAt   DateTime              @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([partId, createdAt])
+  @@index([workOrderId, createdAt])
 }
 
 model Report {
@@ -216,4 +266,6 @@ model Notification {
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([userId, read, createdAt])
 }

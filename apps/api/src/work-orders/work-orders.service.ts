@@ -1,12 +1,15 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import type {
   CreateWorkOrderRequest,
   JwtPayload,
+  PaginatedResponse,
   UpdateWorkOrderRequest,
   WorkOrderFilters,
   WorkOrderResponse,
@@ -63,24 +66,36 @@ function toWorkOrderResponse(w: WorkOrderRow): WorkOrderResponse {
 export class WorkOrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(companyId: string, filters: WorkOrderFilters): Promise<WorkOrderResponse[]> {
-    const rows = await this.prisma.getClient().workOrder.findMany({
-      where: {
-        companyId,
-        deletedAt: null,
-        title: filters.search
-          ? { contains: filters.search, mode: "insensitive" }
-          : undefined,
-        status: filters.status,
-        priority: filters.priority,
-        assetId: filters.assetId,
-        assignedToId: filters.assignedToId,
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (filters.page - 1) * filters.limit,
-      take: filters.limit,
-    });
-    return rows.map(toWorkOrderResponse);
+  async list(
+    companyId: string,
+    filters: WorkOrderFilters,
+  ): Promise<PaginatedResponse<WorkOrderResponse>> {
+    const where: Prisma.WorkOrderWhereInput = {
+      companyId,
+      deletedAt: null,
+      title: filters.search
+        ? { contains: filters.search, mode: "insensitive" }
+        : undefined,
+      status: filters.status,
+      priority: filters.priority,
+      assetId: filters.assetId,
+      assignedToId: filters.assignedToId,
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.getClient().workOrder.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (filters.page - 1) * filters.limit,
+        take: filters.limit,
+      }),
+      this.prisma.getClient().workOrder.count({ where }),
+    ]);
+    return {
+      items: rows.map(toWorkOrderResponse),
+      page: filters.page,
+      pageSize: filters.limit,
+      total,
+    };
   }
 
   async get(id: string, companyId: string): Promise<WorkOrderResponse> {
@@ -91,8 +106,15 @@ export class WorkOrdersService {
     return toWorkOrderResponse(wo);
   }
 
-  async create(input: CreateWorkOrderRequest, companyId: string): Promise<WorkOrderResponse> {
-    await this.validateFks(input.assetId, input.assignedToId ?? null, companyId);
+  async create(
+    input: CreateWorkOrderRequest,
+    companyId: string,
+  ): Promise<WorkOrderResponse> {
+    await this.validateFks(
+      input.assetId,
+      input.assignedToId ?? null,
+      companyId,
+    );
     const row = await this.prisma.getClient().workOrder.create({
       data: {
         title: input.title,
@@ -119,7 +141,9 @@ export class WorkOrdersService {
     if (input.assetId || input.assignedToId !== undefined) {
       await this.validateFks(
         input.assetId ?? existing.assetId,
-        input.assignedToId !== undefined ? (input.assignedToId ?? null) : existing.assignedToId,
+        input.assignedToId !== undefined
+          ? (input.assignedToId ?? null)
+          : existing.assignedToId,
         companyId,
       );
     }
@@ -127,12 +151,18 @@ export class WorkOrdersService {
       where: { id },
       data: {
         ...(input.title !== undefined && { title: input.title }),
-        ...(input.description !== undefined && { description: input.description }),
+        ...(input.description !== undefined && {
+          description: input.description,
+        }),
         ...(input.type !== undefined && { type: input.type }),
         ...(input.priority !== undefined && { priority: input.priority }),
         ...(input.assetId !== undefined && { assetId: input.assetId }),
-        ...(input.assignedToId !== undefined && { assignedToId: input.assignedToId ?? null }),
-        ...(input.dueDate !== undefined && { dueDate: input.dueDate ? new Date(input.dueDate) : null }),
+        ...(input.assignedToId !== undefined && {
+          assignedToId: input.assignedToId ?? null,
+        }),
+        ...(input.dueDate !== undefined && {
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+        }),
       },
     });
     return toWorkOrderResponse(row);
@@ -152,8 +182,18 @@ export class WorkOrdersService {
     });
     if (!wo) throw new NotFoundException();
 
+    if (
+      user.role !== "admin" &&
+      user.role !== "manager" &&
+      user.role !== "technician"
+    ) {
+      throw new ForbiddenException("Your role cannot transition work orders");
+    }
+
     if (user.role === "technician" && wo.assignedToId !== user.sub) {
-      throw new ForbiddenException("You can only transition work orders assigned to you");
+      throw new ForbiddenException(
+        "You can only transition work orders assigned to you",
+      );
     }
 
     if (!canTransition(wo.status, target)) {
@@ -162,13 +202,22 @@ export class WorkOrdersService {
       );
     }
 
-    const row = await this.prisma.getClient().workOrder.update({
-      where: { id },
+    const [row] = await this.prisma.getClient().workOrder.updateManyAndReturn({
+      where: {
+        id,
+        companyId: user.companyId,
+        deletedAt: null,
+        status: wo.status,
+        ...(user.role === "technician" && { assignedToId: user.sub }),
+      },
       data: {
         status: target,
         completedAt: target === "completed" ? new Date() : wo.completedAt,
       },
     });
+    if (!row) {
+      throw new ConflictException("Work order status changed concurrently");
+    }
     return toWorkOrderResponse(row);
   }
 

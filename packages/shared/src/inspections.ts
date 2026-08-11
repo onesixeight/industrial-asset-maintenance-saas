@@ -26,12 +26,17 @@ export const createTemplateRequestSchema = z.object({
 });
 export type CreateTemplateRequest = z.infer<typeof createTemplateRequestSchema>;
 
-export const updateTemplateRequestSchema = createTemplateRequestSchema.partial();
+export const updateTemplateRequestSchema = createTemplateRequestSchema
+  .partial()
+  .refine((update) => Object.keys(update).length > 0, {
+    message: "At least one template field must be provided",
+  });
 export type UpdateTemplateRequest = z.infer<typeof updateTemplateRequestSchema>;
 
 export const templateResponseSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
+  version: z.number().int().positive(),
   items: z.array(templateItemResponseSchema),
   companyId: z.string().uuid(),
   createdAt: z.string(),
@@ -52,12 +57,19 @@ export const submitInspectionRequestSchema = z.object({
   results: z.array(inspectionResultSchema),
   notes: z.string().max(2000).optional(),
 });
-export type SubmitInspectionRequest = z.infer<typeof submitInspectionRequestSchema>;
+export type SubmitInspectionRequest = z.infer<
+  typeof submitInspectionRequestSchema
+>;
 
 export const inspectionResponseSchema = z.object({
   id: z.string().uuid(),
   assetId: z.string().uuid(),
   templateId: z.string().uuid(),
+  templateVersion: z.number().int().positive(),
+  templateSnapshot: z.object({
+    name: z.string(),
+    items: z.array(templateItemResponseSchema),
+  }),
   results: z.array(inspectionResultSchema),
   passed: z.boolean(),
   notes: z.string().nullable(),

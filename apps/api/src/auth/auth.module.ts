@@ -5,7 +5,12 @@ import { VALIDATED_ENV, type Env } from "../config";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { JwtStrategy } from "./jwt.strategy";
-import { TokenService } from "./token.service";
+import {
+  JWT_ALGORITHM,
+  JWT_AUDIENCE,
+  JWT_ISSUER,
+  TokenService,
+} from "./token.service";
 
 /**
  * Wires the auth feature: AuthService + TokenService + JwtStrategy + the
@@ -19,7 +24,17 @@ import { TokenService } from "./token.service";
       inject: [VALIDATED_ENV],
       useFactory: (env: Env) => ({
         secret: env.JWT_SECRET,
-        signOptions: { expiresIn: env.JWT_ACCESS_TTL as unknown as number },
+        signOptions: {
+          algorithm: JWT_ALGORITHM,
+          issuer: JWT_ISSUER,
+          audience: JWT_AUDIENCE,
+          expiresIn: env.JWT_ACCESS_TTL as unknown as number,
+        },
+        verifyOptions: {
+          algorithms: [JWT_ALGORITHM],
+          issuer: JWT_ISSUER,
+          audience: JWT_AUDIENCE,
+        },
       }),
     }),
   ],

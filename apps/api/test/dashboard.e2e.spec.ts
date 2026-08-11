@@ -1,5 +1,4 @@
 import { INestApplication } from "@nestjs/common";
-import { ThrottlerStorage } from "@nestjs/throttler";
 import { Test } from "@nestjs/testing";
 import cookieParser from "cookie-parser";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -7,6 +6,7 @@ import request from "supertest";
 import { truncate, teardown, testPrisma } from "./db";
 import { RedisService } from "../src/redis";
 import { AppModule } from "../src/app.module";
+import { resetThrottleStorage } from "./throttler";
 
 let app: INestApplication;
 
@@ -24,12 +24,13 @@ beforeEach(async () => {
   const redis = app.get(RedisService).client;
   const keys = await redis.keys("auth:denylist:*");
   if (keys.length) await redis.del(...keys);
-  const storage = app.get(ThrottlerStorage) as unknown as { storage?: Map<string, unknown> };
-  storage.storage?.clear();
+  await resetThrottleStorage(app);
 });
 
 async function buildApp(): Promise<INestApplication> {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const moduleRef = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
   const nest = moduleRef.createNestApplication({ bufferLogs: false });
   nest.use(cookieParser());
   await nest.init();
@@ -51,7 +52,10 @@ async function registerAdmin(overrides: Partial<typeof ADMIN> = {}) {
     .post("/auth/register")
     .send({ ...ADMIN, ...overrides });
   if (res.status !== 201) throw new Error(`register failed: ${res.status}`);
-  return res.body as { accessToken: string; user: { id: string; companyId: string } };
+  return res.body as {
+    accessToken: string;
+    user: { id: string; companyId: string };
+  };
 }
 
 function auth(token: string) {
@@ -63,15 +67,35 @@ async function seedAsset(companyId: string) {
   const loc = await c.location.create({ data: { name: "Wh", companyId } });
   const cat = await c.category.create({ data: { name: "Pumps", companyId } });
   const asset = await c.asset.create({
-    data: { name: "Pump 1", qrCode: "qr-" + Math.random().toString(36).slice(2), locationId: loc.id, categoryId: cat.id, companyId },
+    data: {
+      name: "Pump 1",
+      qrCode: "qr-" + Math.random().toString(36).slice(2),
+      locationId: loc.id,
+      categoryId: cat.id,
+      companyId,
+    },
   });
   return asset.id;
 }
 
-async function createWorkOrder(token: string, assetId: string, overrides: Record<string, unknown> = {}) {
-  const body = { title: "Inspect pump", type: "preventive", assetId, priority: "medium", ...overrides };
-  const res = await request(app.getHttpServer()).post("/work-orders").set(auth(token)).send(body);
-  if (res.status !== 201) throw new Error(`createWorkOrder failed: ${res.status}`);
+async function createWorkOrder(
+  token: string,
+  assetId: string,
+  overrides: Record<string, unknown> = {},
+) {
+  const body = {
+    title: "Inspect pump",
+    type: "preventive",
+    assetId,
+    priority: "medium",
+    ...overrides,
+  };
+  const res = await request(app.getHttpServer())
+    .post("/work-orders")
+    .set(auth(token))
+    .send(body);
+  if (res.status !== 201)
+    throw new Error(`createWorkOrder failed: ${res.status}`);
   return res.body as { id: string };
 }
 
@@ -80,7 +104,8 @@ async function transition(token: string, id: string, status: string) {
     .patch(`/work-orders/${id}/status`)
     .set(auth(token))
     .send({ status });
-  if (res.status !== 200) throw new Error(`transition to ${status} failed: ${res.status}`);
+  if (res.status !== 200)
+    throw new Error(`transition to ${status} failed: ${res.status}`);
 }
 
 // --- tests -----------------------------------------------------------------
@@ -88,10 +113,19 @@ async function transition(token: string, id: string, status: string) {
 describe("Dashboard stats", () => {
   it("#1 stats for an empty company are all zeros/nulls", async () => {
     const admin = await registerAdmin();
-    const res = await request(app.getHttpServer()).get("/dashboard/stats").set(auth(admin.accessToken));
+    const res = await request(app.getHttpServer())
+      .get("/dashboard/stats")
+      .set(auth(admin.accessToken));
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      workOrders: { open: 0, inProgress: 0, onHold: 0, completed: 0, cancelled: 0, overdue: 0 },
+      workOrders: {
+        open: 0,
+        inProgress: 0,
+        onHold: 0,
+        completed: 0,
+        cancelled: 0,
+        overdue: 0,
+      },
       assets: { total: 0, maintenance: 0 },
       inspections: { last30Days: 0, passed: 0, passRate: null },
       parts: { lowStock: 0, outOfStock: 0 },
@@ -106,7 +140,9 @@ describe("Dashboard stats", () => {
     await transition(admin.accessToken, wo2.id, "in_progress");
     await transition(admin.accessToken, wo2.id, "completed");
 
-    const res = await request(app.getHttpServer()).get("/dashboard/stats").set(auth(admin.accessToken));
+    const res = await request(app.getHttpServer())
+      .get("/dashboard/stats")
+      .set(auth(admin.accessToken));
     expect(res.body.workOrders.open).toBe(1);
     expect(res.body.workOrders.completed).toBe(1);
     expect(res.body.assets.total).toBe(1);
@@ -123,8 +159,12 @@ describe("Dashboard stats", () => {
     const aAsset = await seedAsset(a.user.companyId);
     await createWorkOrder(a.accessToken, aAsset);
 
-    const statsA = await request(app.getHttpServer()).get("/dashboard/stats").set(auth(a.accessToken));
-    const statsB = await request(app.getHttpServer()).get("/dashboard/stats").set(auth(b.accessToken));
+    const statsA = await request(app.getHttpServer())
+      .get("/dashboard/stats")
+      .set(auth(a.accessToken));
+    const statsB = await request(app.getHttpServer())
+      .get("/dashboard/stats")
+      .set(auth(b.accessToken));
     expect(statsA.body.workOrders.open).toBe(1);
     expect(statsB.body.workOrders.open).toBe(0);
   });
@@ -138,12 +178,16 @@ describe("Dashboard trends", () => {
     await transition(admin.accessToken, wo.id, "in_progress");
     await transition(admin.accessToken, wo.id, "completed");
 
-    const res = await request(app.getHttpServer()).get("/dashboard/trends?days=30").set(auth(admin.accessToken));
+    const res = await request(app.getHttpServer())
+      .get("/dashboard/trends?days=30")
+      .set(auth(admin.accessToken));
     expect(res.status).toBe(200);
     expect(res.body.windowDays).toBe(30);
     expect(res.body.series.length).toBeGreaterThan(0);
     const today = new Date().toISOString().slice(0, 10);
-    const todayPoint = res.body.series.find((p: { date: string }) => p.date === today);
+    const todayPoint = res.body.series.find(
+      (p: { date: string }) => p.date === today,
+    );
     expect(todayPoint.woCreated).toBe(1);
     expect(todayPoint.woCompleted).toBe(1);
   });
@@ -168,14 +212,18 @@ describe("Dashboard trends", () => {
       },
     });
 
-    const res = await request(app.getHttpServer()).get("/dashboard/trends?days=30").set(auth(admin.accessToken));
+    const res = await request(app.getHttpServer())
+      .get("/dashboard/trends?days=30")
+      .set(auth(admin.accessToken));
     expect(res.body.mttrHours).toBeGreaterThan(9);
     expect(res.body.mttrHours).toBeLessThan(11);
   });
 
   it("#7 trends days validation rejects out-of-range", async () => {
     const admin = await registerAdmin();
-    const res = await request(app.getHttpServer()).get("/dashboard/trends?days=999").set(auth(admin.accessToken));
+    const res = await request(app.getHttpServer())
+      .get("/dashboard/trends?days=999")
+      .set(auth(admin.accessToken));
     expect(res.status).toBe(400);
   });
 });
@@ -184,21 +232,27 @@ describe("Reports CSV export", () => {
   it("#8 export → 200 text/csv with attachment disposition and a body row", async () => {
     const admin = await registerAdmin();
     const assetId = await seedAsset(admin.user.companyId);
-    await createWorkOrder(admin.accessToken, assetId, { title: "Pump service" });
+    await createWorkOrder(admin.accessToken, assetId, {
+      title: "Pump service",
+    });
 
     const res = await request(app.getHttpServer())
       .get("/reports/work-orders.csv")
       .set(auth(admin.accessToken));
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("text/csv");
-    expect(res.headers["content-disposition"]).toContain('filename="work-orders.csv"');
+    expect(res.headers["content-disposition"]).toContain(
+      'filename="work-orders.csv"',
+    );
     expect(res.text).toContain("Pump service");
   });
 
   it("#9 CSV escapes a title containing a comma/quote", async () => {
     const admin = await registerAdmin();
     const assetId = await seedAsset(admin.user.companyId);
-    await createWorkOrder(admin.accessToken, assetId, { title: 'Fix pump, "urgent"' });
+    await createWorkOrder(admin.accessToken, assetId, {
+      title: 'Fix pump, "urgent"',
+    });
 
     const res = await request(app.getHttpServer())
       .get("/reports/work-orders.csv")

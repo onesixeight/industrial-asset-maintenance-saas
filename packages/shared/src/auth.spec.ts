@@ -35,51 +35,72 @@ describe("registerRequestSchema", () => {
     expect(registerRequestSchema.parse(valid)).toEqual(valid);
   });
   it("rejects a weak password (no digit)", () => {
-    expect(() => registerRequestSchema.parse({ ...valid, password: "Password" })).toThrow(
-      /digit/,
-    );
+    expect(() =>
+      registerRequestSchema.parse({ ...valid, password: "Password" }),
+    ).toThrow(/digit/);
   });
   it("rejects a short password", () => {
-    expect(() => registerRequestSchema.parse({ ...valid, password: "Ab1" })).toThrow();
+    expect(() =>
+      registerRequestSchema.parse({ ...valid, password: "Ab1" }),
+    ).toThrow();
   });
   it("rejects an invalid email", () => {
-    expect(() => registerRequestSchema.parse({ ...valid, email: "nope" })).toThrow();
+    expect(() =>
+      registerRequestSchema.parse({ ...valid, email: "nope" }),
+    ).toThrow();
   });
   it("rejects an empty company name", () => {
-    expect(() => registerRequestSchema.parse({ ...valid, company: "" })).toThrow();
+    expect(() =>
+      registerRequestSchema.parse({ ...valid, company: "" }),
+    ).toThrow();
   });
 });
 
 describe("loginRequestSchema", () => {
   it("accepts valid credentials", () => {
-    const out = loginRequestSchema.parse({ email: "a@b.com", password: "anything" });
+    const out = loginRequestSchema.parse({
+      email: "a@b.com",
+      password: "anything",
+    });
     expect(out.email).toBe("a@b.com");
   });
   it("rejects an empty password", () => {
-    expect(() => loginRequestSchema.parse({ email: "a@b.com", password: "" })).toThrow();
+    expect(() =>
+      loginRequestSchema.parse({ email: "a@b.com", password: "" }),
+    ).toThrow();
   });
 });
 
 describe("refreshRequestSchema", () => {
   it("requires a non-empty refreshToken", () => {
     expect(() => refreshRequestSchema.parse({ refreshToken: "" })).toThrow();
-    expect(refreshRequestSchema.parse({ refreshToken: "xyz" }).refreshToken).toBe("xyz");
+    expect(
+      refreshRequestSchema.parse({ refreshToken: "xyz" }).refreshToken,
+    ).toBe("xyz");
   });
 });
 
 describe("tokenResponseSchema", () => {
-  it("accepts a valid token response", () => {
-    expect(
+  it("parses only the public access-token response", () => {
+    const parsed = tokenResponseSchema.parse({
+      accessToken: "a",
+      expiresIn: 900,
+    });
+    expect(parsed).toEqual({ accessToken: "a", expiresIn: 900 });
+    expect(parsed).not.toHaveProperty("refreshToken");
+  });
+  it("rejects a response that would expose refreshToken", () => {
+    expect(() =>
       tokenResponseSchema.parse({
         accessToken: "a",
         refreshToken: "r",
         expiresIn: 900,
-      }).expiresIn,
-    ).toBe(900);
+      }),
+    ).toThrow();
   });
   it("rejects a non-positive expiresIn", () => {
     expect(() =>
-      tokenResponseSchema.parse({ accessToken: "a", refreshToken: "r", expiresIn: 0 }),
+      tokenResponseSchema.parse({ accessToken: "a", expiresIn: 0 }),
     ).toThrow();
   });
 });
@@ -100,7 +121,7 @@ describe("userResponseSchema", () => {
 });
 
 describe("authResponseSchema", () => {
-  it("accepts a user plus a token pair", () => {
+  it("parses a user plus the public access-token response", () => {
     const r = {
       user: {
         id: UUID,
@@ -112,10 +133,29 @@ describe("authResponseSchema", () => {
         mustChangePassword: false,
       },
       accessToken: "a",
-      refreshToken: "r",
       expiresIn: 900,
     };
-    expect(authResponseSchema.parse(r).user.role).toBe("admin");
+    const parsed = authResponseSchema.parse(r);
+    expect(parsed.user.role).toBe("admin");
+    expect(parsed).not.toHaveProperty("refreshToken");
+  });
+  it("rejects an auth response that would expose refreshToken", () => {
+    expect(() =>
+      authResponseSchema.parse({
+        user: {
+          id: UUID,
+          email: "a@b.com",
+          firstName: "A",
+          lastName: "B",
+          role: "admin",
+          companyId: UUID,
+          mustChangePassword: false,
+        },
+        accessToken: "a",
+        refreshToken: "r",
+        expiresIn: 900,
+      }),
+    ).toThrow();
   });
 });
 
@@ -125,10 +165,36 @@ describe("jwtPayloadSchema", () => {
       sub: UUID,
       companyId: UUID,
       role: "manager",
+      ver: 0,
+      sid: UUID,
       jti: UUID,
       typ: "access",
     };
     expect(jwtPayloadSchema.parse(p).typ).toBe("access");
+  });
+  it("rejects a payload without a session version", () => {
+    expect(() =>
+      jwtPayloadSchema.parse({
+        sub: UUID,
+        companyId: UUID,
+        role: "manager",
+        sid: UUID,
+        jti: UUID,
+        typ: "access",
+      }),
+    ).toThrow();
+  });
+  it("rejects a payload without a refresh-token family id", () => {
+    expect(() =>
+      jwtPayloadSchema.parse({
+        sub: UUID,
+        companyId: UUID,
+        role: "manager",
+        ver: 0,
+        jti: UUID,
+        typ: "access",
+      }),
+    ).toThrow();
   });
   it("rejects typ other than access/refresh", () => {
     expect(() =>
@@ -136,6 +202,8 @@ describe("jwtPayloadSchema", () => {
         sub: UUID,
         companyId: UUID,
         role: "manager",
+        ver: 0,
+        sid: UUID,
         jti: UUID,
         typ: "id",
       }),

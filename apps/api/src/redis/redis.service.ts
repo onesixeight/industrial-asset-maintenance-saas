@@ -5,7 +5,7 @@ import { VALIDATED_ENV, type Env } from "../config";
 
 /**
  * Thin wrapper around an ioredis client. Used by TokenService for the
- * refresh-token denylist (jti -> exp) and later for rate-limit state.
+ * refresh-token jti/family revocation state and distributed rate limits.
  *
  * Reads REDIS_URL from the validated environment and lazily connects.
  */
@@ -15,7 +15,10 @@ export class RedisService implements OnModuleDestroy {
 
   constructor(config: ConfigService, @Inject(VALIDATED_ENV) env: Env) {
     const url = config.get<string>("REDIS_URL") ?? env.REDIS_URL;
-    this.client = new Redis(url, { lazyConnect: false, maxRetriesPerRequest: 2 });
+    this.client = new Redis(url, {
+      lazyConnect: false,
+      maxRetriesPerRequest: 2,
+    });
   }
 
   async onModuleDestroy(): Promise<void> {

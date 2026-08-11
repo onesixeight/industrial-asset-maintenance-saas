@@ -1,10 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DashboardService } from "./dashboard.service";
 import type { PrismaService } from "../prisma";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
 
-function makePrisma(deleg: Record<string, Record<string, ReturnType<typeof vi.fn>>>) {
+function makePrisma(
+  deleg: Record<string, Record<string, ReturnType<typeof vi.fn>>>,
+  root: Record<string, ReturnType<typeof vi.fn>> = {},
+) {
   const workOrder = {
     groupBy: vi.fn().mockResolvedValue([]),
     count: vi.fn().mockResolvedValue(0),
@@ -12,9 +15,20 @@ function makePrisma(deleg: Record<string, Record<string, ReturnType<typeof vi.fn
     ...deleg.workOrder,
   };
   const asset = { count: vi.fn().mockResolvedValue(0), ...deleg.asset };
-  const inspection = { count: vi.fn().mockResolvedValue(0), findMany: vi.fn().mockResolvedValue([]), ...deleg.inspection };
+  const inspection = {
+    count: vi.fn().mockResolvedValue(0),
+    findMany: vi.fn().mockResolvedValue([]),
+    ...deleg.inspection,
+  };
   const part = { findMany: vi.fn().mockResolvedValue([]), ...deleg.part };
-  const client = { workOrder, asset, inspection, part };
+  const client = {
+    workOrder,
+    asset,
+    inspection,
+    part,
+    $queryRaw: vi.fn().mockResolvedValue([{ lowStock: 0n, outOfStock: 0n }]),
+    ...root,
+  };
   return { getClient: () => client } as unknown as PrismaService;
 }
 
@@ -64,20 +78,28 @@ describe("DashboardService.stats", () => {
   });
 
   it("lowStock counts parts at/below min; outOfStock counts quantity<=0", async () => {
-    const prisma = makePrisma({
-      part: {
-        findMany: vi.fn().mockResolvedValue([
-          { quantity: 10, minQuantity: 5 }, // ok
-          { quantity: 5, minQuantity: 5 }, // low (==min)
-          { quantity: 2, minQuantity: 5 }, // low + counted in outOfStock? 2>0 so no
-          { quantity: 0, minQuantity: 0 }, // low (==min) + outOfStock
-        ]),
-      },
-    });
+    const findMany = vi.fn();
+    const queryRaw = vi
+      .fn()
+      .mockResolvedValue([{ lowStock: 3n, outOfStock: 1n }]);
+    const prisma = makePrisma({ part: { findMany } }, { $queryRaw: queryRaw });
     const svc = new DashboardService(prisma);
     const s = await svc.stats(COMPANY);
     expect(s.parts.lowStock).toBe(3); // 5, 2, 0
     expect(s.parts.outOfStock).toBe(1); // 0
+    expect(findMany).not.toHaveBeenCalled();
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    const [sql, boundCompanyId] = queryRaw.mock.calls[0];
+    expect((sql as TemplateStringsArray).join("?")).toContain(
+      'COUNT(*) FILTER (WHERE "quantity" <= "minQuantity")',
+    );
+    expect((sql as TemplateStringsArray).join("?")).toContain(
+      'COUNT(*) FILTER (WHERE "quantity" <= 0)',
+    );
+    expect((sql as TemplateStringsArray).join("?")).toContain(
+      '"deletedAt" IS NULL',
+    );
+    expect(boundCompanyId).toBe(COMPANY);
   });
 
   it("passes companyId through to every query", async () => {
@@ -85,37 +107,72 @@ describe("DashboardService.stats", () => {
     const prisma = makePrisma({ workOrder: { groupBy } });
     const svc = new DashboardService(prisma);
     await svc.stats(COMPANY);
-    expect(groupBy).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ companyId: COMPANY }) }));
+    expect(groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ companyId: COMPANY }),
+      }),
+    );
   });
 });
 
 describe("DashboardService.trends", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-30T00:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("buckets by UTC calendar day and counts created/completed/inspections", async () => {
     const prisma = makePrisma({
       workOrder: {
         findMany: vi.fn().mockResolvedValue([
-          { createdAt: new Date("2026-01-01T05:00:00Z"), completedAt: new Date("2026-01-02T05:00:00Z") },
+          {
+            createdAt: new Date("2026-01-01T05:00:00Z"),
+            completedAt: new Date("2026-01-02T05:00:00Z"),
+          },
           { createdAt: new Date("2026-01-01T22:00:00Z"), completedAt: null },
         ]),
       },
       inspection: {
-        findMany: vi.fn().mockResolvedValue([{ createdAt: new Date("2026-01-01T10:00:00Z") }]),
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ createdAt: new Date("2026-01-01T10:00:00Z") }]),
       },
     });
     const svc = new DashboardService(prisma);
     const t = await svc.trends(COMPANY, 30);
     expect(t.windowDays).toBe(30);
+    expect(t.series).toHaveLength(30);
+    expect(t.series[0]?.date).toBe("2026-01-01");
+    expect(t.series.at(-1)?.date).toBe("2026-01-30");
     const jan1 = t.series.find((p) => p.date === "2026-01-01");
-    expect(jan1).toEqual({ date: "2026-01-01", woCreated: 2, woCompleted: 0, inspections: 1 });
+    expect(jan1).toEqual({
+      date: "2026-01-01",
+      woCreated: 2,
+      woCompleted: 0,
+      inspections: 1,
+    });
     const jan2 = t.series.find((p) => p.date === "2026-01-02");
     expect(jan2?.woCompleted).toBe(1);
+    expect(t.series.find((p) => p.date === "2026-01-03")).toEqual({
+      date: "2026-01-03",
+      woCreated: 0,
+      woCompleted: 0,
+      inspections: 0,
+    });
   });
 
   it("MTTR reflects completed WOs in the window", async () => {
     const prisma = makePrisma({
       workOrder: {
         findMany: vi.fn().mockResolvedValue([
-          { createdAt: new Date("2026-01-01T00:00:00Z"), completedAt: new Date("2026-01-01T10:00:00Z") }, // 10h
+          {
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+            completedAt: new Date("2026-01-01T10:00:00Z"),
+          }, // 10h
         ]),
       },
     });
@@ -124,11 +181,55 @@ describe("DashboardService.trends", () => {
     expect(t.mttrHours).toBe(10);
   });
 
-  it("empty window → null MTTR, empty series", async () => {
+  it("counts an older work order when its completion falls inside the window", async () => {
+    const completedAt = new Date(Date.now() - 24 * 60 * 60 * 1_000);
+    const createdAt = new Date(
+      completedAt.getTime() - 40 * 24 * 60 * 60 * 1_000,
+    );
+    const findMany = vi.fn().mockResolvedValue([{ createdAt, completedAt }]);
+    const prisma = makePrisma({ workOrder: { findMany } });
+    const svc = new DashboardService(prisma);
+
+    const trends = await svc.trends(COMPANY, 30);
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        companyId: COMPANY,
+        deletedAt: null,
+        OR: [
+          { createdAt: { gte: expect.any(Date) } },
+          { completedAt: { gte: expect.any(Date) } },
+        ],
+      },
+      select: { createdAt: true, completedAt: true },
+    });
+    expect(trends.series).toHaveLength(30);
+    expect(
+      trends.series.find(
+        (point) => point.date === completedAt.toISOString().slice(0, 10),
+      ),
+    ).toEqual({
+      date: completedAt.toISOString().slice(0, 10),
+      woCreated: 0,
+      woCompleted: 1,
+      inspections: 0,
+    });
+    expect(trends.mttrHours).toBe(40 * 24);
+  });
+
+  it("empty window → null MTTR and a zero-filled calendar series", async () => {
     const prisma = makePrisma({});
     const svc = new DashboardService(prisma);
     const t = await svc.trends(COMPANY, 30);
     expect(t.mttrHours).toBeNull();
-    expect(t.series).toEqual([]);
+    expect(t.series).toHaveLength(30);
+    expect(
+      t.series.every(
+        (point) =>
+          point.woCreated === 0 &&
+          point.woCompleted === 0 &&
+          point.inspections === 0,
+      ),
+    ).toBe(true);
   });
 });

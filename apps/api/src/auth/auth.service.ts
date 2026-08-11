@@ -16,9 +16,17 @@ import type {
   UserRole,
 } from "@iam/shared";
 import { PrismaService } from "../prisma";
-import { TokenService } from "./token.service";
+import { TokenService, type IssuedTokenPair } from "./token.service";
 
 const BCRYPT_ROUNDS = 12;
+type IssuedAuthResponse = AuthResponse & Pick<IssuedTokenPair, "refreshToken">;
+type LockedRefreshUser = {
+  id: string;
+  companyId: string;
+  role: UserRole;
+  sessionVersion: number;
+  mustChangePassword: boolean;
+};
 
 @Injectable()
 export class AuthService {
@@ -32,7 +40,7 @@ export class AuthService {
    * token pair. Spec §3.2: registration is the first-admin bootstrap; later
    * users join via /users (Phase 2).
    */
-  async register(input: RegisterRequest): Promise<AuthResponse> {
+  async register(input: RegisterRequest): Promise<IssuedAuthResponse> {
     const existing = await this.prisma.getClient().user.findUnique({
       where: { email: input.email },
       select: { id: true },
@@ -44,7 +52,9 @@ export class AuthService {
     let user;
     try {
       user = await this.prisma.getClient().$transaction(async (tx) => {
-        const company = await tx.company.create({ data: { name: input.company } });
+        const company = await tx.company.create({
+          data: { name: input.company },
+        });
         return tx.user.create({
           data: {
             email: input.email,
@@ -74,11 +84,12 @@ export class AuthService {
       userId: user.id,
       companyId: user.companyId,
       role: user.role,
+      sessionVersion: user.sessionVersion,
     });
     return { ...pair, user: userResponse };
   }
 
-  async login(input: LoginRequest): Promise<AuthResponse> {
+  async login(input: LoginRequest): Promise<IssuedAuthResponse> {
     const user = await this.prisma.getClient().user.findUnique({
       where: { email: input.email },
     });
@@ -102,6 +113,7 @@ export class AuthService {
       userId: user.id,
       companyId: user.companyId,
       role: user.role,
+      sessionVersion: user.sessionVersion,
     });
     return { ...pair, user: userResponse };
   }
@@ -113,7 +125,9 @@ export class AuthService {
    * blocked login issued no tokens, so the caller proves identity with
    * email + currentPassword.
    */
-  async changePassword(input: ChangePasswordRequest): Promise<AuthResponse> {
+  async changePassword(
+    input: ChangePasswordRequest,
+  ): Promise<IssuedAuthResponse> {
     const user = await this.prisma.getClient().user.findUnique({
       where: { email: input.email },
     });
@@ -131,38 +145,81 @@ export class AuthService {
     const password = await bcrypt.hash(input.newPassword, BCRYPT_ROUNDS);
     const updated = await this.prisma.getClient().user.update({
       where: { id: user.id },
-      data: { password, mustChangePassword: false },
+      data: {
+        password,
+        mustChangePassword: false,
+        sessionVersion: { increment: 1 },
+      },
     });
     const userResponse = this.toUserResponse(updated);
     const pair = await this.tokens.issuePair({
       userId: updated.id,
       companyId: updated.companyId,
       role: updated.role,
+      sessionVersion: updated.sessionVersion,
     });
     return { ...pair, user: userResponse };
   }
 
   async refresh(refreshToken: string) {
-    const payload = await this.tokens.verify(refreshToken, "refresh");
+    // A consumed jti is still authenticated here: claimRefresh must see it so
+    // it can treat the second use as replay and revoke the whole token family.
+    const payload = await this.tokens.verifyForRefreshRotation(refreshToken);
     if (!payload) {
       throw new UnauthorizedException("Invalid refresh token");
     }
-    // Rotate: revoke old refresh, issue a new pair.
-    await this.tokens.revoke(payload);
-    return this.tokens.issuePair({
-      userId: payload.sub,
-      companyId: payload.companyId,
-      role: payload.role,
+    return this.prisma.getClient().$transaction(async (tx) => {
+      // Lock the identity row until the successor pair has been prepared and
+      // the old refresh JTI has been claimed. Role/password updates use the
+      // same row and therefore serialize either before this read (old token is
+      // rejected) or after issuance (their sessionVersion increment revokes
+      // the newly issued refresh token).
+      const [user] = await tx.$queryRaw<LockedRefreshUser[]>`
+        SELECT "id", "companyId", "role", "sessionVersion", "mustChangePassword"
+        FROM "User"
+        WHERE "id" = ${payload.sub}
+        FOR UPDATE
+      `;
+      if (
+        !user ||
+        user.mustChangePassword ||
+        user.companyId !== payload.companyId ||
+        user.role !== payload.role ||
+        user.sessionVersion !== payload.ver
+      ) {
+        throw new UnauthorizedException("Stale refresh token");
+      }
+
+      // Prepare the successor before the irreversible Redis claim. Once NX
+      // succeeds there are no remaining fallible external operations inside
+      // this callback; competing rotations may prepare tokens, but only the
+      // claimant can return them.
+      const pair = await this.tokens.issuePair(
+        {
+          userId: user.id,
+          companyId: user.companyId,
+          role: user.role,
+          sessionVersion: user.sessionVersion,
+        },
+        payload.sid,
+      );
+      if (!(await this.tokens.claimRefresh(payload))) {
+        throw new UnauthorizedException("Refresh token already used");
+      }
+      return pair;
     });
   }
 
   async logout(refreshToken: string): Promise<void> {
-    const payload = await this.tokens.verify(refreshToken, "refresh");
+    // Intentionally ignore Redis revocation state after authenticating the
+    // signature. A user may log out with an already-consumed token; its
+    // successor must still be invalidated through the shared family id.
+    const payload = await this.tokens.verifyAuthentic(refreshToken, "refresh");
     if (!payload) {
       // Idempotent: logging out with an invalid token is a no-op.
       return;
     }
-    await this.tokens.revoke(payload);
+    await this.tokens.revokeFamily(payload.sid);
   }
 
   async me(payload: JwtPayload): Promise<UserResponse> {

@@ -11,7 +11,13 @@ export default defineConfig({
   ],
   test: {
     environment: "node",
-    include: ["src/**/*.spec.ts", "test/**/*.e2e.spec.ts"],
+    include: [
+      "test/**/*.e2e.spec.ts",
+      "src/auth/auth.service.spec.ts",
+      "src/auth/token.service.spec.ts",
+      "src/prisma/prisma.service.spec.ts",
+      "src/redis/redis.service.spec.ts",
+    ],
     // DB-touching integration specs share the test Postgres; their
     // beforeEach truncate hooks conflict if files run in parallel. Run files
     // serially (still many tests per file run concurrently is fine because
@@ -19,7 +25,7 @@ export default defineConfig({
     fileParallelism: false,
     // Sets default test env (DB/Redis/JWT) before any spec imports modules
     // that trigger ConfigModule's Zod validation at import time.
-    setupFiles: ["./test/setup.env.ts"],
+    setupFiles: ["./test/setup.integration.env.ts"],
     server: {
       deps: {
         // Heavy CommonJS deps (notably the generated @prisma/client) load more

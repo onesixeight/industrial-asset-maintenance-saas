@@ -36,7 +36,7 @@ export class LocationsController {
     @CurrentUser() user: JwtPayload,
     @Query(new ZodValidationPipe(listQuerySchema)) q: ListQuery,
   ) {
-    return this.locations.list(user.companyId, q.search);
+    return this.locations.list(user.companyId, q);
   }
 
   @Get(":id")

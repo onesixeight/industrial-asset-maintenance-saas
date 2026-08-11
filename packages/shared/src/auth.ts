@@ -49,12 +49,13 @@ export type RefreshRequest = z.infer<typeof refreshRequestSchema>;
 
 // --- Token response ---------------------------------------------------------
 
-export const tokenResponseSchema = z.object({
-  accessToken: z.string(),
-  refreshToken: z.string(),
-  /** Seconds until the access token expires. */
-  expiresIn: z.number().int().positive(),
-});
+export const tokenResponseSchema = z
+  .object({
+    accessToken: z.string(),
+    /** Seconds until the access token expires. */
+    expiresIn: z.number().int().positive(),
+  })
+  .strict();
 export type TokenResponse = z.infer<typeof tokenResponseSchema>;
 
 // --- Authenticated user (from /me) ------------------------------------------
@@ -73,7 +74,7 @@ export type UserResponse = z.infer<typeof userResponseSchema>;
 
 // --- Auth response (register / login) ---------------------------------------
 
-/** Register/login return the authenticated user plus a fresh token pair. */
+/** Register/login return the authenticated user plus a public access token. */
 export const authResponseSchema = tokenResponseSchema.extend({
   user: userResponseSchema,
 });
@@ -85,6 +86,10 @@ export const jwtPayloadSchema = z.object({
   sub: z.string().uuid(), // userId
   companyId: z.string().uuid(),
   role: userRoleSchema,
+  /** User session version at issuance; stale versions cannot refresh. */
+  ver: z.number().int().nonnegative(),
+  /** Cryptographically random refresh-token family/session identifier. */
+  sid: z.string().uuid(),
   jti: z.string().uuid(), // token id (for denylist)
   typ: z.enum(["access", "refresh"]),
   // Standard JWT claim, present on verified tokens (added by the signer).

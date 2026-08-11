@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getTestEnvironment } from "../../test/environment";
 import { PrismaService } from "./prisma.service";
 
 // NOTE: do NOT import @prisma/client here. When both this spec and
@@ -6,7 +7,7 @@ import { PrismaService } from "./prisma.service";
 // distinct transformed PrismaClient classes whose Proxy constructors refer
 // to each other and recurse infinitely on instantiation. Getting the client
 // only through PrismaService avoids the double transform.
-const URL = "postgresql://iam:iam@localhost:5433/iam_test?schema=public";
+const { databaseUrl: URL } = getTestEnvironment(process.env);
 const config = (url: string | undefined): any =>
   ({ get: (k: string) => (k === "DATABASE_URL" ? url : undefined) }) as any;
 const env = { DATABASE_URL: URL } as never;

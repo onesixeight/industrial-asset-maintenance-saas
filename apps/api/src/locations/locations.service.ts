@@ -1,5 +1,16 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import type { LocationRequest, LocationResponse } from "@iam/shared";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
+import type {
+  ListQuery,
+  LocationRequest,
+  LocationResponse,
+  PaginatedResponse,
+} from "@iam/shared";
+import { deleteWithForeignKeyConflict } from "../common/prisma-delete";
 import { PrismaService } from "../prisma";
 
 /**
@@ -11,14 +22,26 @@ import { PrismaService } from "../prisma";
 export class LocationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(companyId: string, search?: string): Promise<LocationResponse[]> {
-    return this.prisma.getClient().location.findMany({
-      where: {
-        companyId,
-        name: search ? { contains: search, mode: "insensitive" } : undefined,
-      },
-      orderBy: { name: "asc" },
-    });
+  async list(
+    companyId: string,
+    query: ListQuery,
+  ): Promise<PaginatedResponse<LocationResponse>> {
+    const where: Prisma.LocationWhereInput = {
+      companyId,
+      name: query.search
+        ? { contains: query.search, mode: "insensitive" }
+        : undefined,
+    };
+    const [items, total] = await Promise.all([
+      this.prisma.getClient().location.findMany({
+        where,
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.getClient().location.count({ where }),
+    ]);
+    return { items, page: query.page, pageSize: query.limit, total };
   }
 
   async get(id: string, companyId: string): Promise<LocationResponse> {
@@ -57,6 +80,9 @@ export class LocationsService {
     if (assets > 0) {
       throw new ConflictException("Location has assets; remove them first");
     }
-    await this.prisma.getClient().location.delete({ where: { id } });
+    await deleteWithForeignKeyConflict(
+      () => this.prisma.getClient().location.delete({ where: { id } }),
+      "Location has assets; remove them first",
+    );
   }
 }

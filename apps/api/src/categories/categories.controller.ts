@@ -36,7 +36,7 @@ export class CategoriesController {
     @CurrentUser() user: JwtPayload,
     @Query(new ZodValidationPipe(listQuerySchema)) q: ListQuery,
   ) {
-    return this.categories.list(user.companyId, q.search);
+    return this.categories.list(user.companyId, q);
   }
 
   @Get(":id")
