@@ -2,11 +2,14 @@ import type {
   CreateTemplateRequest,
   InspectionFilters,
   InspectionResponse,
+  ListQuery,
+  PaginatedResponse,
   SubmitInspectionRequest,
   TemplateResponse,
   UpdateTemplateRequest,
 } from "@iam/shared";
 import { apiJson } from "../api-client";
+import { pageQuery, type PageRequest } from "./pagination";
 
 const base = (): string => process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
@@ -20,9 +23,20 @@ function qs(filters: Partial<InspectionFilters>): string {
 }
 
 export const templatesApi = {
-  list: (search?: string) =>
-    apiJson<TemplateResponse[]>(`${base()}/inspections/templates${search ? `?search=${encodeURIComponent(search)}` : ""}`),
-  get: (id: string) => apiJson<TemplateResponse>(`${base()}/inspections/templates/${id}`),
+  list: (query: Partial<ListQuery> = {}, signal?: AbortSignal) =>
+    apiJson<PaginatedResponse<TemplateResponse>>(
+      `${base()}/inspections/templates${qs(query)}`,
+      { signal },
+    ),
+  page: (
+    search: string | undefined,
+    request: PageRequest,
+    signal?: AbortSignal,
+  ) => templatesApi.list(pageQuery({ search }, request), signal),
+  get: (id: string, signal?: AbortSignal) =>
+    apiJson<TemplateResponse>(`${base()}/inspections/templates/${id}`, {
+      signal,
+    }),
   create: (input: CreateTemplateRequest) =>
     apiJson<TemplateResponse>(`${base()}/inspections/templates`, {
       method: "POST",
@@ -36,13 +50,24 @@ export const templatesApi = {
       body: JSON.stringify(input),
     }),
   remove: (id: string) =>
-    apiJson<void>(`${base()}/inspections/templates/${id}`, { method: "DELETE" }),
+    apiJson<void>(`${base()}/inspections/templates/${id}`, {
+      method: "DELETE",
+    }),
 };
 
 export const inspectionsApi = {
-  list: (filters: Partial<InspectionFilters> = {}) =>
-    apiJson<InspectionResponse[]>(`${base()}/inspections${qs(filters)}`),
-  get: (id: string) => apiJson<InspectionResponse>(`${base()}/inspections/${id}`),
+  list: (filters: Partial<InspectionFilters> = {}, signal?: AbortSignal) =>
+    apiJson<PaginatedResponse<InspectionResponse>>(
+      `${base()}/inspections${qs(filters)}`,
+      { signal },
+    ),
+  page: (
+    filters: Partial<InspectionFilters>,
+    request: PageRequest,
+    signal?: AbortSignal,
+  ) => inspectionsApi.list(pageQuery(filters, request), signal),
+  get: (id: string, signal?: AbortSignal) =>
+    apiJson<InspectionResponse>(`${base()}/inspections/${id}`, { signal }),
   submit: (input: SubmitInspectionRequest) =>
     apiJson<InspectionResponse>(`${base()}/inspections`, {
       method: "POST",

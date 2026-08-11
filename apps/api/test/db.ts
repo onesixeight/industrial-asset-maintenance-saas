@@ -2,9 +2,13 @@ import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../src/prisma";
 import type { Env } from "../src/config";
 import { VALIDATED_ENV } from "../src/config";
+import {
+  assertDestructiveTestEnvironment,
+  getTestEnvironment,
+} from "./environment";
 
 /**
- * Test DB helpers. Backed by the docker-compose.test Postgres (port 5433).
+ * Test DB helpers. Backed by the caller-provided isolated test services.
  *
  * `truncate()` clears all tables in dependency order; safe to call in
  * beforeEach for integration specs.
@@ -16,15 +20,19 @@ import { VALIDATED_ENV } from "../src/config";
 
 let _prisma: PrismaService | undefined;
 
+const testEnvironment = getTestEnvironment(process.env);
+
 const TEST_ENV: Env = {
-  NODE_ENV: "test",
-  PORT: 0,
-  DATABASE_URL: "postgresql://iam:iam@localhost:5433/iam_test?schema=public",
-  REDIS_URL: "redis://localhost:6379",
-  JWT_SECRET: "test-secret-at-least-16-chars",
-  JWT_ACCESS_TTL: "15m",
-  JWT_REFRESH_TTL: "7d",
-  CORS_ORIGIN: "*",
+  NODE_ENV: testEnvironment.nodeEnv,
+  PORT: testEnvironment.port,
+  TRUST_PROXY_HOPS: 0,
+  DATABASE_URL: testEnvironment.databaseUrl,
+  REDIS_URL: testEnvironment.redisUrl,
+  JWT_SECRET: testEnvironment.jwtSecret,
+  JWT_ACCESS_TTL: testEnvironment.jwtAccessTtl,
+  JWT_REFRESH_TTL: testEnvironment.jwtRefreshTtl,
+  CORS_ORIGIN: testEnvironment.corsOrigin,
+  PUBLIC_SCAN_BASE: "http://localhost:3000",
 };
 
 /** Shared test PrismaService connected to the test DB. */
@@ -38,19 +46,28 @@ export function testPrisma(): PrismaService {
 
 /** Truncate all tables in dependency order. Idempotent. */
 export async function truncate(): Promise<void> {
+  assertDestructiveTestEnvironment();
   const c = testPrisma().getClient();
-  // Dependents first (FKs), then parents.
-  await c.notification.deleteMany();
-  await c.workOrderPart.deleteMany();
-  await c.inspection.deleteMany();
-  await c.workOrder.deleteMany();
-  await c.inspectionTemplate.deleteMany();
-  await c.part.deleteMany();
-  await c.asset.deleteMany();
-  await c.category.deleteMany();
-  await c.location.deleteMany();
-  await c.user.deleteMany();
-  await c.company.deleteMany();
+  // The database name is validated as a dedicated test database before this
+  // module loads. TRUNCATE intentionally bypasses the production append-only
+  // InventoryMovement DML trigger and clears every application table at once.
+  await c.$executeRaw`
+    TRUNCATE TABLE
+      "Notification",
+      "InventoryMovement",
+      "WorkOrderPart",
+      "Inspection",
+      "WorkOrder",
+      "InspectionTemplate",
+      "Part",
+      "Asset",
+      "Category",
+      "Location",
+      "Report",
+      "User",
+      "Company"
+    RESTART IDENTITY CASCADE
+  `;
 }
 
 /** Disconnect the shared pool (call from afterAll at the suite level). */

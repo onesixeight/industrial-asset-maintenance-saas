@@ -10,7 +10,11 @@ const ok = (b: unknown, status = 200) =>
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
-  useAuthStore.setState({ user: null, accessToken: "old", status: "authenticated" });
+  useAuthStore.setState({
+    user: null,
+    accessToken: "old",
+    status: "authenticated",
+  });
   process.env.NEXT_PUBLIC_API_URL = "/api";
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -29,7 +33,7 @@ describe("apiFetch", () => {
     // /me with it (to repopulate the user) → the original request is retried.
     (fetch as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
-      .mockResolvedValueOnce(ok({ accessToken: "new", refreshToken: "r", expiresIn: 900 }))
+      .mockResolvedValueOnce(ok({ accessToken: "new", expiresIn: 900 }))
       .mockResolvedValueOnce(ok({ id: "u", email: "a@b.test" })) // /me in silentRefresh
       .mockResolvedValueOnce(ok({ ok: true })); // retry of the original request
     const res = await apiFetch("/api/anything");
@@ -49,13 +53,29 @@ describe("apiFetch", () => {
 });
 
 describe("apiJson error propagation", () => {
+  it("returns undefined for successful empty responses", async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(null, { status: 204 }),
+    );
+
+    await expect(
+      apiJson<void>("/api/x", { method: "DELETE" }),
+    ).resolves.toBeUndefined();
+  });
+
   it("exposes the server error code from the JSON body (e.g. MUST_CHANGE_PASSWORD)", async () => {
     // Nest serializes ForbiddenException({code}) as {statusCode, message:{code}}.
     (fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      new Response(JSON.stringify({ statusCode: 403, message: { code: "MUST_CHANGE_PASSWORD" } }), {
-        status: 403,
-        headers: { "Content-Type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({
+          statusCode: 403,
+          message: { code: "MUST_CHANGE_PASSWORD" },
+        }),
+        {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     );
     await expect(apiJson("/api/auth/login")).rejects.toMatchObject({
       status: 403,
@@ -70,7 +90,10 @@ describe("apiJson error propagation", () => {
         headers: { "Content-Type": "application/json" },
       }),
     );
-    await expect(apiJson("/api/x")).rejects.toMatchObject({ status: 409, code: "CONFLICT" });
+    await expect(apiJson("/api/x")).rejects.toMatchObject({
+      status: 409,
+      code: "CONFLICT",
+    });
   });
 
   it("falls back to status-only error for non-JSON bodies", async () => {

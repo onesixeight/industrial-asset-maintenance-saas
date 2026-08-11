@@ -70,7 +70,8 @@ export class WorkOrdersController {
   @HttpCode(HttpStatus.CREATED)
   create(
     @CurrentUser() user: JwtPayload,
-    @Body(new ZodValidationPipe(createWorkOrderRequestSchema)) body: CreateWorkOrderRequest,
+    @Body(new ZodValidationPipe(createWorkOrderRequestSchema))
+    body: CreateWorkOrderRequest,
   ) {
     return this.workOrders.create(body, user.companyId);
   }
@@ -81,17 +82,21 @@ export class WorkOrdersController {
   update(
     @CurrentUser() user: JwtPayload,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(updateWorkOrderRequestSchema)) body: UpdateWorkOrderRequest,
+    @Body(new ZodValidationPipe(updateWorkOrderRequestSchema))
+    body: UpdateWorkOrderRequest,
   ) {
     return this.workOrders.update(id, body, user.companyId);
   }
 
   @Patch(":id/status")
+  @UseGuards(RolesGuard)
+  @Roles("admin", "manager", "technician")
   @HttpCode(HttpStatus.OK)
   transition(
     @CurrentUser() user: JwtPayload,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(transitionWorkOrderRequestSchema)) body: TransitionWorkOrderRequest,
+    @Body(new ZodValidationPipe(transitionWorkOrderRequestSchema))
+    body: TransitionWorkOrderRequest,
   ) {
     // No class-level role gate: service enforces technician-ownership + manager/admin.
     return this.workOrders.transition(id, body.status, user);
@@ -113,11 +118,14 @@ export class WorkOrdersController {
   }
 
   @Post(":id/parts")
+  @UseGuards(RolesGuard)
+  @Roles("admin", "manager", "technician")
   @HttpCode(HttpStatus.CREATED)
   consumePart(
     @CurrentUser() user: JwtPayload,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(consumePartRequestSchema)) body: ConsumePartRequest,
+    @Body(new ZodValidationPipe(consumePartRequestSchema))
+    body: ConsumePartRequest,
   ) {
     // No class-level role gate: service enforces technician-ownership + admin/manager.
     return this.woParts.consume(id, body, user);
@@ -132,6 +140,6 @@ export class WorkOrdersController {
     @Param("id") id: string,
     @Param("partId") partId: string,
   ) {
-    await this.woParts.restock(id, partId, user.companyId);
+    await this.woParts.restock(id, partId, user);
   }
 }

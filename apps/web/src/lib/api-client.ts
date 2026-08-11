@@ -1,5 +1,8 @@
 import { useAuthStore } from "./auth/store";
 import { silentRefresh } from "./auth/refresh";
+import { clearIdentity } from "./auth/session";
+import { apiRequest } from "./api-request";
+import { captureIdentityGeneration } from "./auth/identity-generation";
 
 export interface ApiError extends Error {
   status: number;
@@ -17,9 +20,13 @@ async function toError(res: Response): Promise<ApiError> {
   const err = new Error(`HTTP ${res.status}`) as ApiError;
   err.status = res.status;
   try {
-    const body = (await res.clone().json()) as { code?: string; message?: string };
+    const body = (await res.clone().json()) as {
+      code?: string;
+      message?: string;
+    };
     if (body?.code) err.code = body.code;
-    if (body?.message && typeof body.message === "string") err.message = body.message;
+    if (body?.message && typeof body.message === "string")
+      err.message = body.message;
     // Nest wraps ForbiddenException({code}) payload as {message: {code}} — unwrap it.
     if (body?.message && typeof body.message === "object") {
       const code = (body.message as { code?: string }).code;
@@ -36,12 +43,25 @@ async function toError(res: Response): Promise<ApiError> {
  * attempts one silent refresh and retries the request once. A second failure
  * (or a refresh failure) throws and clears auth.
  */
-export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+export async function apiFetch(
+  input: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const requestIdentity = captureIdentityGeneration();
+  const requestSignal = init.signal
+    ? AbortSignal.any([requestIdentity.signal, init.signal])
+    : requestIdentity.signal;
   const token = useAuthStore.getState().accessToken;
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(input, { ...init, headers, credentials: "include" });
+  const res = await apiRequest(input, {
+    ...init,
+    headers,
+    credentials: "include",
+    signal: requestSignal,
+  });
+  if (requestSignal.aborted) throw new DOMException("Aborted", "AbortError");
   if (res.status !== 401) return res;
 
   // 401: try one silent refresh. silentRefresh already clears auth on failure,
@@ -52,16 +72,28 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
 
   const newToken = useAuthStore.getState().accessToken;
   headers.set("Authorization", `Bearer ${newToken}`);
-  const retry = await fetch(input, { ...init, headers, credentials: "include" });
+  const retry = await apiRequest(input, {
+    ...init,
+    headers,
+    credentials: "include",
+    signal: requestSignal,
+  });
   if (retry.status === 401) {
-    useAuthStore.getState().clear();
+    await clearIdentity();
   }
   return retry;
 }
 
 /** JSON helper for authenticated GET/POST/etc. Throws ApiError on non-ok. */
-export async function apiJson<T>(input: string, init: RequestInit = {}): Promise<T> {
+export async function apiJson<T>(
+  input: string,
+  init: RequestInit = {},
+): Promise<T> {
   const res = await apiFetch(input, init);
   if (!res.ok) throw await toError(res);
-  return res.json() as Promise<T>;
+  if (res.status === 204) return undefined as T;
+
+  const text = await res.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }

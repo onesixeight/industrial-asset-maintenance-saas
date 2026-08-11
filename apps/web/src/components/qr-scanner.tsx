@@ -16,42 +16,78 @@ export interface QrScannerProps {
  */
 export function QrScanner({ onDecode, onError }: QrScannerProps) {
   const containerId = "qr-scanner-region";
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const onDecodeRef = useRef(onDecode);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onDecodeRef.current = onDecode;
+  }, [onDecode]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   useEffect(() => {
     let cancelled = false;
+    let claimed = false;
+    let startSucceeded = false;
+    let stopRequested = false;
+    let stopPromise: Promise<void> | null = null;
     const scanner = new Html5Qrcode(containerId);
-    scannerRef.current = scanner;
+
+    function stopStartedScanner(): Promise<void> {
+      if (stopPromise) return stopPromise;
+      stopPromise = scanner
+        .stop()
+        .catch(() => undefined)
+        .then(() => {
+          scanner.clear();
+        })
+        .catch(() => undefined);
+      return stopPromise;
+    }
+
+    function requestStop(): void {
+      stopRequested = true;
+      if (startSucceeded) void stopStartedScanner();
+    }
 
     scanner
       .start(
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
         (decoded: string) => {
-          if (cancelled) return;
-          onDecode(decoded);
+          if (cancelled || claimed) return;
+          claimed = true;
+          requestStop();
+          onDecodeRef.current(decoded);
         },
         () => {
           // per-frame failure: ignore, only surface hard start failures
         },
       )
+      .then(() => {
+        startSucceeded = true;
+        if (stopRequested) return stopStartedScanner();
+      })
       .catch((err: unknown) => {
-        if (!cancelled) onError?.(err instanceof Error ? err.message : "Camera unavailable");
+        if (!cancelled) {
+          onErrorRef.current?.(
+            err instanceof Error ? err.message : "Camera unavailable",
+          );
+        }
       });
 
     return () => {
       cancelled = true;
-      const s = scannerRef.current;
-      scannerRef.current = null;
-      if (s) {
-        s.stop()
-          .then(() => s.clear())
-          .catch(() => {
-            // already stopped
-          });
-      }
+      requestStop();
     };
-  }, [onDecode, onError]);
+  }, []);
 
-  return <div id={containerId} className="w-full max-w-sm overflow-hidden rounded-[var(--radius)] border border-border" />;
+  return (
+    <div
+      id={containerId}
+      className="w-full max-w-sm overflow-hidden rounded-[var(--radius)] border border-border"
+    />
+  );
 }

@@ -12,17 +12,28 @@ import { FormField } from "@/components/form-field";
 import { Modal } from "@/components/modal";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
+import { QueryState } from "@/components/query-state";
+import { can } from "@/lib/auth/capabilities";
+import { useAuth } from "@/lib/auth/hooks";
+
+const PAGE_SIZE = 20;
 
 export default function CategoriesPage() {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
-    queryKey: ["categories"],
-    queryFn: () => categoriesApi.list(),
+  const { user } = useAuth();
+  const canManage = can(user?.role, "manageReferenceData");
+  const [page, setPage] = useState(1);
+  const query = useQuery({
+    queryKey: ["categories", page],
+    queryFn: ({ signal }) =>
+      categoriesApi.page(undefined, { page, pageSize: PAGE_SIZE }, signal),
   });
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<CategoryResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<CategoryResponse | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<CategoryResponse | null>(
+    null,
+  );
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const form = useForm<CategoryRequest>({
@@ -68,26 +79,39 @@ export default function CategoriesPage() {
       setConfirmDelete(null);
     } catch (e) {
       const status = (e as { status?: number }).status;
-      setDeleteError(status === 409 ? "Has assets; remove them first." : "Could not delete.");
+      setDeleteError(
+        status === 409 ? "Has assets; remove them first." : "Could not delete.",
+      );
     }
   }
 
   const columns: DataTableColumn<CategoryResponse>[] = [
     { key: "name", header: "Name" },
-    { key: "description", header: "Description", render: (r) => r.description ?? "—" },
+    {
+      key: "description",
+      header: "Description",
+      render: (r) => r.description ?? "—",
+    },
     {
       key: "actions",
       header: "",
-      render: (row) => (
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => openEdit(row)}>
-            Edit
-          </Button>
-          <Button variant="destructive" onClick={() => { setConfirmDelete(row); setDeleteError(null); }}>
-            Delete
-          </Button>
-        </div>
-      ),
+      render: (row) =>
+        canManage ? (
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => openEdit(row)}>
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setConfirmDelete(row);
+                setDeleteError(null);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ) : null,
     },
   ];
 
@@ -95,15 +119,49 @@ export default function CategoriesPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Categories</h1>
-        <Button onClick={openNew}>New category</Button>
+        {canManage ? <Button onClick={openNew}>New category</Button> : null}
       </div>
-      {isLoading ? <p className="text-muted-foreground">Loading…</p> : <DataTable columns={columns} rows={data ?? []} empty="No categories yet." />}
+      <QueryState
+        isLoading={query.isLoading}
+        error={query.error}
+        onRetry={() => query.refetch()}
+        isEmpty={query.data?.total === 0}
+        emptyMessage="No categories yet."
+      >
+        <DataTable
+          columns={columns}
+          rows={query.data?.items ?? []}
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={query.data?.total ?? 0}
+          onPageChange={setPage}
+        />
+      </QueryState>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit category" : "New category"}>
-        <form onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))} className="flex flex-col gap-4">
-          <FormField id="name" label="Name" error={form.formState.errors.name?.message} {...form.register("name")} />
-          <FormField id="description" label="Description (optional)" error={form.formState.errors.description?.message} {...form.register("description")} />
-          {errorMsg ? <p className="text-sm text-destructive">{errorMsg}</p> : null}
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editing ? "Edit category" : "New category"}
+      >
+        <form
+          onSubmit={form.handleSubmit((v) => saveMutation.mutate(v))}
+          className="flex flex-col gap-4"
+        >
+          <FormField
+            id="name"
+            label="Name"
+            error={form.formState.errors.name?.message}
+            {...form.register("name")}
+          />
+          <FormField
+            id="description"
+            label="Description (optional)"
+            error={form.formState.errors.description?.message}
+            {...form.register("description")}
+          />
+          {errorMsg ? (
+            <p className="text-sm text-destructive">{errorMsg}</p>
+          ) : null}
           <Button type="submit" disabled={saveMutation.isPending}>
             {editing ? "Save" : "Create"}
           </Button>
@@ -113,7 +171,10 @@ export default function CategoriesPage() {
       <ConfirmDialog
         open={!!confirmDelete}
         title="Delete category"
-        message={deleteError ?? `Delete "${confirmDelete?.name ?? ""}"? This cannot be undone.`}
+        message={
+          deleteError ??
+          `Delete "${confirmDelete?.name ?? ""}"? This cannot be undone.`
+        }
         confirmLabel="Delete"
         tone="destructive"
         onConfirm={() => confirmDelete && onDelete(confirmDelete)}

@@ -11,6 +11,8 @@ export interface ModalProps {
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+const MEANINGFUL_FIELD =
+  '[autofocus], input:not([type="hidden"]):not([disabled]):not([tabindex="-1"]), textarea:not([disabled]):not([tabindex="-1"]), select:not([disabled]):not([tabindex="-1"]), [contenteditable="true"]';
 
 /**
  * Accessible modal dialog. Renders a centered overlay with Escape-to-close,
@@ -21,9 +23,14 @@ const FOCUSABLE =
 export function Modal({ open, onClose, title, children }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const onCloseRef = useRef(onClose);
   // Remember the element that had focus before the modal opened so we can
   // restore it on close.
   const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // Escape to close + focus trap + autofocus.
   useEffect(() => {
@@ -32,12 +39,14 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
 
     const panel = panelRef.current;
     // Autofocus the first focusable child (e.g. the first form field).
-    const first = panel?.querySelector<HTMLElement>(FOCUSABLE);
+    const first =
+      panel?.querySelector<HTMLElement>(MEANINGFUL_FIELD) ??
+      panel?.querySelector<HTMLElement>(FOCUSABLE);
     first?.focus();
 
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !panel) return;
@@ -59,13 +68,13 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
       document.removeEventListener("keydown", onKey);
       previouslyFocused.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+      onClick={() => onCloseRef.current()}
     >
       <div
         ref={panelRef}
@@ -81,7 +90,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
             className="text-muted-foreground hover:text-foreground"
             aria-label="Close"
           >

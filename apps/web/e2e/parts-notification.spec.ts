@@ -1,8 +1,10 @@
-import { test, expect, request } from "@playwright/test";
+import { expect, request, test } from "./fixtures";
 import { registerCompany, seedAsset, loginThroughUi, API } from "./helpers";
 
 test.describe("#4 parts consume → notification (Phase 6→8 loop)", () => {
-  test("consuming a part past its low-stock threshold makes the bell badge increment", async ({ page, browser }) => {
+  test("consuming a part past its low-stock threshold makes the bell badge increment", async ({
+    page,
+  }) => {
     const suffix = `pn-${Date.now()}`;
     const adminSession = await registerCompany(suffix);
     const assetId = await seedAsset(adminSession.accessToken);
@@ -20,21 +22,33 @@ test.describe("#4 parts consume → notification (Phase 6→8 loop)", () => {
       },
       headers: { Authorization: `Bearer ${adminSession.accessToken}` },
     });
-    expect(mgrRes.ok()).toBeTruthy();
+    expect(mgrRes.status()).toBe(201);
     await ctx.dispose();
 
     // --- Admin creates a part + a WO, then we consume past the threshold. ---
     const adminCtx = await request.newContext({ baseURL: API });
     const h = { Authorization: `Bearer ${adminSession.accessToken}` };
     const partRes = await adminCtx.post("/parts", {
-      data: { name: "Bearing", sku: `BRG-${suffix}`, quantity: 6, minQuantity: 5 },
+      data: {
+        name: "Bearing",
+        sku: `BRG-${suffix}`,
+        quantity: 6,
+        minQuantity: 5,
+      },
       headers: h,
     });
+    expect(partRes.status()).toBe(201);
     const part = await partRes.json();
     const woRes = await adminCtx.post("/work-orders", {
-      data: { title: "Consume test", type: "corrective", assetId, priority: "medium" },
+      data: {
+        title: "Consume test",
+        type: "corrective",
+        assetId,
+        priority: "medium",
+      },
       headers: h,
     });
+    expect(woRes.status()).toBe(201);
     const wo = await woRes.json();
     await adminCtx.dispose();
 
@@ -43,7 +57,12 @@ test.describe("#4 parts consume → notification (Phase 6→8 loop)", () => {
     await loginThroughUi(page, `mgr-${suffix}@test.local`);
 
     // The bell badge should start at 0 (no notification).
-    await expect(page.getByRole("button", { name: /notifications/i })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /notifications/i }),
+    ).toBeVisible();
+    await expect(
+      page.locator('button[aria-label="Notifications"] .text-\\[10px\\]'),
+    ).toHaveCount(0);
 
     // --- Now consume 3 (6 → 3, crosses min 5) as the admin via the API. ---
     const consumeCtx = await request.newContext({ baseURL: API });
@@ -51,7 +70,9 @@ test.describe("#4 parts consume → notification (Phase 6→8 loop)", () => {
       data: { partId: part.id, quantity: 3 },
       headers: { Authorization: `Bearer ${adminSession.accessToken}` },
     });
-    expect(consumeRes.ok(), `consume failed: ${consumeRes.status()}`).toBeTruthy();
+    expect(consumeRes.status(), "part consumption must be created once").toBe(
+      201,
+    );
     await consumeCtx.dispose();
 
     // The manager's unread-count is polled every 60s, but we force a reload to
@@ -59,7 +80,9 @@ test.describe("#4 parts consume → notification (Phase 6→8 loop)", () => {
     await page.reload();
     // Scope to the notifications badge so we don't match an unrelated "1".
     await expect(
-      page.locator('button[aria-label="Notifications"] .text-\\[10px\\]', { hasText: "1" }),
+      page.locator('button[aria-label="Notifications"] .text-\\[10px\\]', {
+        hasText: "1",
+      }),
     ).toBeVisible({ timeout: 10_000 });
   });
 });

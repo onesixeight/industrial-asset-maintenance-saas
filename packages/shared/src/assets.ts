@@ -1,8 +1,16 @@
 import { z } from "zod";
 import { listQuerySchema } from "./reference";
+import { dateOnlyToIsoSchema } from "./dates";
 
 export const assetStatusSchema = z.enum(["active", "maintenance", "retired"]);
 export type AssetStatus = z.infer<typeof assetStatusSchema>;
+
+export const updateAssetStatusRequestSchema = z.object({
+  status: assetStatusSchema,
+});
+export type UpdateAssetStatusRequest = z.infer<
+  typeof updateAssetStatusRequestSchema
+>;
 
 export const assetFiltersSchema = listQuerySchema.extend({
   status: assetStatusSchema.optional(),
@@ -12,6 +20,9 @@ export const assetFiltersSchema = listQuerySchema.extend({
 export type AssetFilters = z.infer<typeof assetFiltersSchema>;
 
 const dateOrNull = z.union([z.string().datetime(), z.null()]);
+const optionalDateFromForm = z
+  .union([dateOnlyToIsoSchema, z.literal("").transform(() => undefined)])
+  .optional();
 
 export const createAssetRequestSchema = z.object({
   name: z.string().min(1).max(200),
@@ -19,8 +30,8 @@ export const createAssetRequestSchema = z.object({
   serialNumber: z.string().max(100).optional(),
   locationId: z.string().uuid(),
   categoryId: z.string().uuid(),
-  purchaseDate: z.string().datetime().optional(),
-  warrantyDate: z.string().datetime().optional(),
+  purchaseDate: optionalDateFromForm,
+  warrantyDate: optionalDateFromForm,
 });
 export type CreateAssetRequest = z.infer<typeof createAssetRequestSchema>;
 

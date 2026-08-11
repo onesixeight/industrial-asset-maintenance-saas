@@ -1,0 +1,9 @@
+# Default review owner.
+* @onesixeight
+
+# Security- and data-sensitive surfaces require an explicit owner review.
+/.github/ @onesixeight
+/apps/api/prisma/ @onesixeight
+/apps/api/src/auth/ @onesixeight
+/apps/api/src/config/ @onesixeight
+/apps/api/src/common/redis-throttler.storage.ts @onesixeight

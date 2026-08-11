@@ -1,10 +1,93 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
-    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**"] },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**"],
+      "env": ["API_ORIGIN", "NEXT_PUBLIC_API_URL"]
+    },
     "dev": { "cache": false, "persistent": true },
     "lint": {},
-    "typecheck": { "dependsOn": ["^build"] },
-    "test": { "dependsOn": ["^build"] }
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_URL_TEST",
+        "REDIS_URL_TEST",
+        "ALLOW_DESTRUCTIVE_TEST_DATABASE",
+        "JWT_SECRET",
+        "JWT_ACCESS_TTL",
+        "JWT_REFRESH_TTL",
+        "CORS_ORIGIN",
+        "PORT",
+        "TRUST_PROXY_HOPS",
+        "NEXT_PUBLIC_API_URL"
+      ]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": [
+        "DATABASE_URL_TEST",
+        "REDIS_URL_TEST",
+        "ALLOW_DESTRUCTIVE_TEST_DATABASE",
+        "JWT_SECRET",
+        "JWT_ACCESS_TTL",
+        "JWT_REFRESH_TTL",
+        "CORS_ORIGIN",
+        "PORT",
+        "TRUST_PROXY_HOPS",
+        "NEXT_PUBLIC_API_URL"
+      ]
+    },
+    "test:unit": {
+      "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_URL_TEST",
+        "REDIS_URL_TEST",
+        "ALLOW_DESTRUCTIVE_TEST_DATABASE",
+        "JWT_SECRET",
+        "JWT_ACCESS_TTL",
+        "JWT_REFRESH_TTL",
+        "CORS_ORIGIN",
+        "PORT",
+        "TRUST_PROXY_HOPS",
+        "NEXT_PUBLIC_API_URL"
+      ]
+    },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": [
+        "DATABASE_URL_TEST",
+        "REDIS_URL_TEST",
+        "ALLOW_DESTRUCTIVE_TEST_DATABASE",
+        "JWT_SECRET",
+        "JWT_ACCESS_TTL",
+        "JWT_REFRESH_TTL",
+        "CORS_ORIGIN",
+        "PORT",
+        "TRUST_PROXY_HOPS",
+        "NEXT_PUBLIC_API_URL"
+      ]
+    },
+    "test:e2e": {
+      "dependsOn": ["^build", "build"],
+      "cache": false,
+      "env": [
+        "DATABASE_URL_TEST",
+        "REDIS_URL_TEST",
+        "ALLOW_DESTRUCTIVE_TEST_DATABASE",
+        "JWT_SECRET",
+        "JWT_ACCESS_TTL",
+        "JWT_REFRESH_TTL",
+        "CORS_ORIGIN",
+        "PORT",
+        "TRUST_PROXY_HOPS",
+        "NEXT_PUBLIC_API_URL",
+        "API_ORIGIN",
+        "PLAYWRIGHT_BASE_URL",
+        "PLAYWRIGHT_REUSE_EXISTING_SERVER"
+      ]
+    }
   }
 }

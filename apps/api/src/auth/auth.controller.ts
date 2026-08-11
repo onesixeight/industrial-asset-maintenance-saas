@@ -36,6 +36,10 @@ import { AuthService } from "./auth.service";
 /** Cookie name carrying the refresh token (httpOnly, sameSite=lax). */
 const REFRESH_COOKIE = "refresh_token";
 
+function refreshCookiePath(): "/" | "/api/auth" {
+  return process.env.NODE_ENV === "production" ? "/api/auth" : "/";
+}
+
 /**
  * Read the refresh token from the httpOnly cookie, falling back to the JSON
  * body (spec §4: refresh "reads refresh from cookie; falls back to body").
@@ -63,7 +67,11 @@ export class AuthController {
   ): Promise<AuthResponse> {
     const result = await this.auth.register(body);
     this.setRefreshCookie(res, result.refreshToken);
-    return result;
+    return {
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+      user: result.user,
+    };
   }
 
   @Post("login")
@@ -75,41 +83,59 @@ export class AuthController {
   ): Promise<AuthResponse> {
     const result = await this.auth.login(body);
     this.setRefreshCookie(res, result.refreshToken);
-    return result;
+    return {
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+      user: result.user,
+    };
   }
 
   @Post("change-password")
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async changePassword(
-    @Body(new ZodValidationPipe(changePasswordRequestSchema)) body: ChangePasswordRequest,
+    @Body(new ZodValidationPipe(changePasswordRequestSchema))
+    body: ChangePasswordRequest,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponse> {
     // No Bearer: the blocked login issued no tokens; the caller proves identity
     // with email + currentPassword (spec §5). On success sets the refresh cookie.
     const result = await this.auth.changePassword(body);
     this.setRefreshCookie(res, result.refreshToken);
-    return result;
+    return {
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+      user: result.user,
+    };
   }
 
   @Post("refresh")
   @HttpCode(HttpStatus.OK)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  async refresh(@Req() req: Request): Promise<TokenResponse> {
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<TokenResponse> {
     // Refresh token comes from the httpOnly cookie primarily, with a body
     // fallback (spec §4). No Zod pipe: the body is optional when the cookie
     // is present; AuthService.refresh rejects an empty/invalid token with 401.
     const refreshToken = readRefresh(req) ?? "";
-    return this.auth.refresh(refreshToken);
+    const result = await this.auth.refresh(refreshToken);
+    this.setRefreshCookie(res, result.refreshToken);
+    return { accessToken: result.accessToken, expiresIn: result.expiresIn };
   }
 
   @Post("logout")
   @HttpCode(HttpStatus.OK)
   async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const refreshToken = readRefresh(req);
-    if (refreshToken) await this.auth.logout(refreshToken);
-    res.clearCookie(REFRESH_COOKIE, { path: "/" });
-    return { success: true };
+    try {
+      if (refreshToken) await this.auth.logout(refreshToken);
+      return { success: true };
+    } finally {
+      // Clearing the browser credential must not depend on Redis availability.
+      res.clearCookie(REFRESH_COOKIE, { path: refreshCookiePath() });
+    }
   }
 
   @Get("me")
@@ -134,11 +160,10 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      // Path "/" (not "/auth"): the Next.js (dashboard) Server Component
-      // guard reads the refresh cookie at /dashboard to decide whether to
-      // allow a silent-refresh attempt. The cookie is httpOnly (no JS access)
-      // and only /auth/refresh + /auth/logout consume it server-side.
-      path: "/",
+      // Production browsers use the documented same-origin /api rewrite, so
+      // the credential never needs to accompany unrelated page requests.
+      // Test/dev retain "/" for direct API-origin workflows.
+      path: refreshCookiePath(),
     });
   }
 }

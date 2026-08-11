@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
@@ -12,9 +13,14 @@ import type {
   ChangeRoleRequest,
   CreateUserRequest,
   JwtPayload,
+  ListQuery,
   UserRole,
 } from "@iam/shared";
-import { changeRoleRequestSchema, createUserRequestSchema } from "@iam/shared";
+import {
+  changeRoleRequestSchema,
+  createUserRequestSchema,
+  listQuerySchema,
+} from "@iam/shared";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
@@ -34,16 +40,25 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  list(@CurrentUser() user: JwtPayload) {
-    return this.users.list(user.companyId);
+  list(
+    @CurrentUser() user: JwtPayload,
+    @Query(new ZodValidationPipe(listQuerySchema)) q: ListQuery,
+  ) {
+    return this.users.list(user.companyId, q);
+  }
+
+  @Get(":id")
+  get(@CurrentUser() user: JwtPayload, @Param("id") id: string) {
+    return this.users.get(id, user.companyId);
   }
 
   @Post()
   create(
     @CurrentUser() user: JwtPayload,
-    @Body(new ZodValidationPipe(createUserRequestSchema)) body: CreateUserRequest,
+    @Body(new ZodValidationPipe(createUserRequestSchema))
+    body: CreateUserRequest,
   ) {
-    return this.users.create(body, user.companyId);
+    return this.users.create(user, body);
   }
 
   @Patch(":id/role")
@@ -51,8 +66,9 @@ export class UsersController {
   changeRole(
     @CurrentUser() user: JwtPayload,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(changeRoleRequestSchema)) body: ChangeRoleRequest,
+    @Body(new ZodValidationPipe(changeRoleRequestSchema))
+    body: ChangeRoleRequest,
   ) {
-    return this.users.changeRole(id, body.role as UserRole, user.companyId);
+    return this.users.changeRole(id, body.role as UserRole, user);
   }
 }

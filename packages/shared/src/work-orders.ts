@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { listQuerySchema } from "./reference";
+import { dateOnlyToIsoSchema } from "./dates";
 
-export const workOrderTypeSchema = z.enum(["preventive", "corrective", "inspection"]);
+export const workOrderTypeSchema = z.enum([
+  "preventive",
+  "corrective",
+  "inspection",
+]);
 export type WorkOrderType = z.infer<typeof workOrderTypeSchema>;
 
 export const workOrderStatusSchema = z.enum([
@@ -26,6 +31,9 @@ export type WorkOrderFilters = z.infer<typeof workOrderFiltersSchema>;
 
 const isoOrNull = z.union([z.string().datetime(), z.null()]);
 const uuidOrNull = z.union([z.string().uuid(), z.null()]);
+const optionalNullableDateFromForm = z
+  .union([dateOnlyToIsoSchema, z.literal("").transform(() => null), z.null()])
+  .optional();
 
 export const createWorkOrderRequestSchema = z.object({
   title: z.string().min(1).max(200),
@@ -34,15 +42,24 @@ export const createWorkOrderRequestSchema = z.object({
   priority: prioritySchema,
   assetId: z.string().uuid(),
   assignedToId: z.string().uuid().nullable().optional(),
-  dueDate: z.string().datetime().nullable().optional(),
+  dueDate: optionalNullableDateFromForm,
 });
-export type CreateWorkOrderRequest = z.infer<typeof createWorkOrderRequestSchema>;
+export type CreateWorkOrderRequest = z.infer<
+  typeof createWorkOrderRequestSchema
+>;
 
-export const updateWorkOrderRequestSchema = createWorkOrderRequestSchema.partial();
-export type UpdateWorkOrderRequest = z.infer<typeof updateWorkOrderRequestSchema>;
+export const updateWorkOrderRequestSchema =
+  createWorkOrderRequestSchema.partial();
+export type UpdateWorkOrderRequest = z.infer<
+  typeof updateWorkOrderRequestSchema
+>;
 
-export const transitionWorkOrderRequestSchema = z.object({ status: workOrderStatusSchema });
-export type TransitionWorkOrderRequest = z.infer<typeof transitionWorkOrderRequestSchema>;
+export const transitionWorkOrderRequestSchema = z.object({
+  status: workOrderStatusSchema,
+});
+export type TransitionWorkOrderRequest = z.infer<
+  typeof transitionWorkOrderRequestSchema
+>;
 
 export const workOrderResponseSchema = z.object({
   id: z.string().uuid(),

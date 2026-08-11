@@ -33,6 +33,11 @@ type WorkOrderPartRow = {
   part: PartRow;
 };
 
+type WorkOrderAuthorizationRow = {
+  id: string;
+  assignedToId: string | null;
+};
+
 /**
  * Maps a WorkOrderPart row (with nested part) to the API response shape.
  */
@@ -59,7 +64,10 @@ function toWorkOrderPartResponse(r: WorkOrderPartRow): WorkOrderPartResponse {
 export class WorkOrderPartsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(workOrderId: string, companyId: string): Promise<WorkOrderPartResponse[]> {
+  async list(
+    workOrderId: string,
+    companyId: string,
+  ): Promise<WorkOrderPartResponse[]> {
     // Tenant-scope via the work order; an unknown/wrong-tenant WO → empty list.
     const wo = await this.prisma.getClient().workOrder.findFirst({
       where: { id: workOrderId, companyId, deletedAt: null },
@@ -69,7 +77,7 @@ export class WorkOrderPartsService {
     const rows = await this.prisma.getClient().workOrderPart.findMany({
       where: { workOrderId },
       include: { part: true },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
     return rows.map(toWorkOrderPartResponse);
   }
@@ -80,19 +88,40 @@ export class WorkOrderPartsService {
     user: JwtPayload,
   ): Promise<WorkOrderPartResponse> {
     return this.prisma.getClient().$transaction(async (tx) => {
-      const wo = await tx.workOrder.findFirst({
-        where: { id: workOrderId, companyId: user.companyId, deletedAt: null },
-      });
+      // Linearize ownership checks with manager reassignment/archive. A
+      // technician who lost assignment before this lock is acquired cannot
+      // proceed to mutate stock.
+      const [wo] = await tx.$queryRaw<WorkOrderAuthorizationRow[]>`
+        SELECT id, "assignedToId"
+        FROM "WorkOrder"
+        WHERE id = ${workOrderId}
+          AND "companyId" = ${user.companyId}
+          AND "deletedAt" IS NULL
+        FOR UPDATE
+      `;
       if (!wo) throw new NotFoundException();
+
+      if (
+        user.role !== "admin" &&
+        user.role !== "manager" &&
+        user.role !== "technician"
+      ) {
+        throw new ForbiddenException("Your role cannot consume inventory");
+      }
 
       // Technician may only consume on WOs assigned to them (Phase 4 pattern).
       if (user.role === "technician" && wo.assignedToId !== user.sub) {
         throw new ForbiddenException();
       }
 
-      const part = await tx.part.findFirst({
-        where: { id: input.partId, companyId: user.companyId },
-      });
+      const [part] = await tx.$queryRaw<PartRow[]>`
+        SELECT id, name, sku, description, quantity, "minQuantity", "companyId", "createdAt", "updatedAt"
+        FROM "Part"
+        WHERE id = ${input.partId}
+          AND "companyId" = ${user.companyId}
+          AND "deletedAt" IS NULL
+        FOR UPDATE
+      `;
       if (!part) throw new NotFoundException("Part not found");
 
       if (part.quantity < input.quantity) {
@@ -100,34 +129,40 @@ export class WorkOrderPartsService {
       }
 
       const newQuantity = part.quantity - input.quantity;
-      const crossedLowStock = part.quantity > part.minQuantity && newQuantity <= part.minQuantity;
+      const crossedLowStock =
+        part.quantity > part.minQuantity && newQuantity <= part.minQuantity;
 
       const updatedPart = await tx.part.update({
         where: { id: part.id },
-        data: { quantity: newQuantity },
+        data: { quantity: { decrement: input.quantity } },
       });
 
-      const existing = await tx.workOrderPart.findUnique({
+      const line = (await tx.workOrderPart.upsert({
         where: { workOrderId_partId: { workOrderId, partId: part.id } },
+        create: { workOrderId, partId: part.id, quantity: input.quantity },
+        update: { quantity: { increment: input.quantity } },
+        include: { part: true },
+      })) as WorkOrderPartRow;
+
+      await tx.inventoryMovement.create({
+        data: {
+          partId: part.id,
+          workOrderId,
+          actorId: user.sub,
+          companyId: user.companyId,
+          delta: -input.quantity,
+          kind: "consumption",
+          reason: `Consumed for work order ${workOrderId}`,
+        },
       });
-      let line: WorkOrderPartRow;
-      if (existing) {
-        line = (await tx.workOrderPart.update({
-          where: { id: existing.id },
-          data: { quantity: existing.quantity + input.quantity },
-          include: { part: true },
-        })) as WorkOrderPartRow;
-      } else {
-        line = (await tx.workOrderPart.create({
-          data: { workOrderId, partId: part.id, quantity: input.quantity },
-          include: { part: true },
-        })) as WorkOrderPartRow;
-      }
 
       // Low-stock trigger — bounded: direct inserts, no read service (Phase 8).
       if (crossedLowStock) {
         const recipients = await tx.user.findMany({
-          where: { companyId: user.companyId, role: { in: ["admin", "manager"] } },
+          where: {
+            companyId: user.companyId,
+            role: { in: ["admin", "manager"] },
+          },
           select: { id: true },
         });
         if (recipients.length > 0) {
@@ -145,18 +180,52 @@ export class WorkOrderPartsService {
     });
   }
 
-  async restock(workOrderId: string, partId: string, companyId: string): Promise<void> {
+  async restock(
+    workOrderId: string,
+    partId: string,
+    user: JwtPayload,
+  ): Promise<void> {
+    if (user.role !== "admin" && user.role !== "manager") {
+      throw new ForbiddenException("Your role cannot restock inventory");
+    }
     await this.prisma.getClient().$transaction(async (tx) => {
-      const line = await tx.workOrderPart.findFirst({
-        where: { workOrderId, partId, workOrder: { companyId, deletedAt: null } },
-        include: { part: true },
-      });
+      const [part] = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id
+        FROM "Part"
+        WHERE id = ${partId} AND "companyId" = ${user.companyId}
+        FOR UPDATE
+      `;
+      if (!part) throw new NotFoundException();
+
+      const [line] = await tx.$queryRaw<
+        Array<{ id: string; quantity: number }>
+      >`
+        SELECT wop.id, wop.quantity
+        FROM "WorkOrderPart" wop
+        JOIN "WorkOrder" wo ON wo.id = wop."workOrderId"
+        WHERE wop."workOrderId" = ${workOrderId}
+          AND wop."partId" = ${partId}
+          AND wo."companyId" = ${user.companyId}
+          AND wo."deletedAt" IS NULL
+        FOR UPDATE OF wop
+      `;
       if (!line) throw new NotFoundException();
 
       // Restore stock; restock never crosses low-stock downward.
       await tx.part.update({
-        where: { id: partId },
-        data: { quantity: line.part.quantity + line.quantity },
+        where: { id: part.id },
+        data: { quantity: { increment: line.quantity } },
+      });
+      await tx.inventoryMovement.create({
+        data: {
+          partId: part.id,
+          workOrderId,
+          actorId: user.sub,
+          companyId: user.companyId,
+          delta: line.quantity,
+          kind: "restock",
+          reason: `Restocked from work order ${workOrderId}`,
+        },
       });
       await tx.workOrderPart.delete({ where: { id: line.id } });
     });

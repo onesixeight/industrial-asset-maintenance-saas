@@ -16,12 +16,14 @@ import type {
   CreateTemplateRequest,
   InspectionFilters,
   JwtPayload,
+  ListQuery,
   SubmitInspectionRequest,
   UpdateTemplateRequest,
 } from "@iam/shared";
 import {
   createTemplateRequestSchema,
   inspectionFiltersSchema,
+  listQuerySchema,
   submitInspectionRequestSchema,
   updateTemplateRequestSchema,
 } from "@iam/shared";
@@ -49,9 +51,9 @@ export class InspectionsController {
   @Get("templates")
   listTemplates(
     @CurrentUser() user: JwtPayload,
-    @Query("search") search?: string,
+    @Query(new ZodValidationPipe(listQuerySchema)) q: ListQuery,
   ) {
-    return this.inspections.listTemplates(user.companyId, search);
+    return this.inspections.listTemplates(user.companyId, q);
   }
 
   @Get("templates/:id")
@@ -65,7 +67,8 @@ export class InspectionsController {
   @HttpCode(HttpStatus.CREATED)
   createTemplate(
     @CurrentUser() user: JwtPayload,
-    @Body(new ZodValidationPipe(createTemplateRequestSchema)) body: CreateTemplateRequest,
+    @Body(new ZodValidationPipe(createTemplateRequestSchema))
+    body: CreateTemplateRequest,
   ) {
     return this.inspections.createTemplate(body, user.companyId);
   }
@@ -76,7 +79,8 @@ export class InspectionsController {
   updateTemplate(
     @CurrentUser() user: JwtPayload,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(updateTemplateRequestSchema)) body: UpdateTemplateRequest,
+    @Body(new ZodValidationPipe(updateTemplateRequestSchema))
+    body: UpdateTemplateRequest,
   ) {
     return this.inspections.updateTemplate(id, body, user.companyId);
   }
@@ -85,7 +89,10 @@ export class InspectionsController {
   @UseGuards(RolesGuard)
   @Roles("admin", "manager")
   @HttpCode(HttpStatus.NO_CONTENT)
-  async removeTemplate(@CurrentUser() user: JwtPayload, @Param("id") id: string) {
+  async removeTemplate(
+    @CurrentUser() user: JwtPayload,
+    @Param("id") id: string,
+  ) {
     await this.inspections.removeTemplate(id, user.companyId);
   }
 
@@ -110,7 +117,8 @@ export class InspectionsController {
   @HttpCode(HttpStatus.CREATED)
   submit(
     @CurrentUser() user: JwtPayload,
-    @Body(new ZodValidationPipe(submitInspectionRequestSchema)) body: SubmitInspectionRequest,
+    @Body(new ZodValidationPipe(submitInspectionRequestSchema))
+    body: SubmitInspectionRequest,
   ) {
     return this.inspections.submit(body, user.sub, user.companyId);
   }

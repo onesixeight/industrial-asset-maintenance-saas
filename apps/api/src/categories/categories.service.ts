@@ -1,5 +1,16 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
-import type { CategoryRequest, CategoryResponse } from "@iam/shared";
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
+import type {
+  CategoryRequest,
+  CategoryResponse,
+  ListQuery,
+  PaginatedResponse,
+} from "@iam/shared";
+import { deleteWithForeignKeyConflict } from "../common/prisma-delete";
 import { PrismaService } from "../prisma";
 
 /**
@@ -10,14 +21,26 @@ import { PrismaService } from "../prisma";
 export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(companyId: string, search?: string): Promise<CategoryResponse[]> {
-    return this.prisma.getClient().category.findMany({
-      where: {
-        companyId,
-        name: search ? { contains: search, mode: "insensitive" } : undefined,
-      },
-      orderBy: { name: "asc" },
-    });
+  async list(
+    companyId: string,
+    query: ListQuery,
+  ): Promise<PaginatedResponse<CategoryResponse>> {
+    const where: Prisma.CategoryWhereInput = {
+      companyId,
+      name: query.search
+        ? { contains: query.search, mode: "insensitive" }
+        : undefined,
+    };
+    const [items, total] = await Promise.all([
+      this.prisma.getClient().category.findMany({
+        where,
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.getClient().category.count({ where }),
+    ]);
+    return { items, page: query.page, pageSize: query.limit, total };
   }
 
   async get(id: string, companyId: string): Promise<CategoryResponse> {
@@ -54,6 +77,9 @@ export class CategoriesService {
     if (assets > 0) {
       throw new ConflictException("Category has assets; remove them first");
     }
-    await this.prisma.getClient().category.delete({ where: { id } });
+    await deleteWithForeignKeyConflict(
+      () => this.prisma.getClient().category.delete({ where: { id } }),
+      "Category has assets; remove them first",
+    );
   }
 }

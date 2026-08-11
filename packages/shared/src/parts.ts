@@ -25,8 +25,25 @@ export const createPartRequestSchema = z.object({
 });
 export type CreatePartRequest = z.infer<typeof createPartRequestSchema>;
 
-export const updatePartRequestSchema = createPartRequestSchema.partial();
+export const updatePartRequestSchema = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+    sku: z.string().min(1).max(100).optional(),
+    description: z.string().max(500).nullable().optional(),
+    minQuantity: z.number().int().min(0).optional(),
+  })
+  .strict();
 export type UpdatePartRequest = z.infer<typeof updatePartRequestSchema>;
+
+/** Audited stock mutation. Generic part PATCH intentionally cannot set quantity. */
+export const adjustPartRequestSchema = z.object({
+  delta: z
+    .number()
+    .int()
+    .refine((value) => value !== 0, "Adjustment must be non-zero"),
+  reason: z.string().trim().min(1).max(500),
+});
+export type AdjustPartRequest = z.infer<typeof adjustPartRequestSchema>;
 
 export const partFiltersSchema = listQuerySchema.extend({
   lowStock: booleanQuery,

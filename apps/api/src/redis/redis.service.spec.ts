@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import Redis from "ioredis";
+import { getTestEnvironment } from "../../test/environment";
 import { RedisService } from "./redis.service";
 
-const URL = "redis://localhost:6379";
+const { redisUrl: URL } = getTestEnvironment(process.env);
 const config = (url: string | undefined): any =>
   ({ get: (k: string) => (k === "REDIS_URL" ? url : undefined) }) as any;
 const env = { REDIS_URL: URL } as never;

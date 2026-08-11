@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { notificationsApi } from "@/lib/api/notifications";
 import { useAuth } from "@/lib/auth/hooks";
+import { QueryState } from "./query-state";
 
 /**
  * Header bell with an unread badge and a dropdown of recent notifications.
@@ -15,6 +16,7 @@ import { useAuth } from "@/lib/auth/hooks";
 export function NotificationsMenu() {
   const { status } = useAuth();
   const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(1);
   const qc = useQueryClient();
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -39,14 +41,15 @@ export function NotificationsMenu() {
 
   const countQuery = useQuery({
     queryKey: ["notifications-unread"],
-    queryFn: () => notificationsApi.unreadCount(),
+    queryFn: ({ signal }) => notificationsApi.unreadCount(signal),
     enabled: status === "authenticated",
     refetchInterval: 60_000,
   });
 
   const listQuery = useQuery({
-    queryKey: ["notifications", "recent"],
-    queryFn: () => notificationsApi.list({ page: 1, limit: 10 }),
+    queryKey: ["notifications", page],
+    queryFn: ({ signal }) =>
+      notificationsApi.page({}, { page, pageSize: 10 }, signal),
     enabled: status === "authenticated" && open,
   });
 
@@ -67,13 +70,17 @@ export function NotificationsMenu() {
   });
 
   const unread = countQuery.data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil((listQuery.data?.total ?? 0) / 10));
 
   return (
     <div className="relative" ref={rootRef}>
       <button
         type="button"
         className="relative rounded-[var(--radius)] border border-border bg-background px-3 py-1.5 text-sm hover:bg-muted"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) setPage(1);
+          setOpen((value) => !value);
+        }}
         aria-label="Notifications"
       >
         🔔
@@ -101,42 +108,78 @@ export function NotificationsMenu() {
           </div>
 
           <div className="max-h-80 overflow-y-auto">
-            {listQuery.isLoading ? (
-              <p className="px-3 py-4 text-sm text-muted-foreground">Loading…</p>
-            ) : listQuery.data && listQuery.data.length > 0 ? (
-              <ul className="flex flex-col">
-                {listQuery.data.map((n) => (
-                  <li
-                    key={n.id}
-                    className={`border-b border-border px-3 py-2 text-sm last:border-b-0 ${
-                      n.read ? "bg-background" : "bg-primary/5"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="font-medium">{n.title}</div>
-                        <div className="text-muted-foreground">{n.message}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {new Date(n.createdAt).toLocaleString()}
+            <QueryState
+              isLoading={listQuery.isLoading}
+              error={listQuery.error}
+              onRetry={() => listQuery.refetch()}
+              isEmpty={listQuery.data?.total === 0}
+              emptyMessage="No notifications."
+            >
+              {listQuery.data && listQuery.data.items.length > 0 ? (
+                <ul className="flex flex-col">
+                  {listQuery.data.items.map((n) => (
+                    <li
+                      key={n.id}
+                      className={`border-b border-border px-3 py-2 text-sm last:border-b-0 ${
+                        n.read ? "bg-background" : "bg-primary/5"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="font-medium">{n.title}</div>
+                          <div className="text-muted-foreground">
+                            {n.message}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {new Date(n.createdAt).toLocaleString()}
+                          </div>
                         </div>
+                        {!n.read ? (
+                          <button
+                            type="button"
+                            className="text-xs underline"
+                            onClick={() => markOne.mutate(n.id)}
+                          >
+                            Read
+                          </button>
+                        ) : null}
                       </div>
-                      {!n.read ? (
-                        <button
-                          type="button"
-                          className="text-xs underline"
-                          onClick={() => markOne.mutate(n.id)}
-                        >
-                          Read
-                        </button>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="px-3 py-4 text-sm text-muted-foreground">No notifications.</p>
-            )}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </QueryState>
           </div>
+          {listQuery.data && listQuery.data.total > 0 ? (
+            <nav
+              aria-label="Notification pagination"
+              className="flex items-center justify-between border-t border-border px-3 py-2 text-xs"
+            >
+              <button
+                type="button"
+                aria-label="Newer notifications"
+                className="underline disabled:opacity-50"
+                disabled={page <= 1}
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+              >
+                Newer
+              </button>
+              <span>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                aria-label="Older notifications"
+                className="underline disabled:opacity-50"
+                disabled={page >= totalPages}
+                onClick={() =>
+                  setPage((value) => Math.min(totalPages, value + 1))
+                }
+              >
+                Older
+              </button>
+            </nav>
+          ) : null}
         </div>
       ) : null}
     </div>

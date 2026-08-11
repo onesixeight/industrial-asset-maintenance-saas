@@ -7,7 +7,7 @@ spare-parts inventory, and running QR-based inspections. Multi-tenant,
 role-based (admin / manager / technician / viewer), JWT-authenticated with
 refresh-token rotation. Portfolio project.
 
-> **Status:** Phases 0–10 complete. See [`docs/progress.md`](./docs/progress.md).
+> **Status:** Phases 0–11 complete. See [`docs/progress.md`](./docs/progress.md).
 
 ## Quick start
 
@@ -19,55 +19,63 @@ docker compose up -d        # postgres:16 + redis:7
 pnpm install
 pnpm --filter @iam/shared build   # required before first api/web dev run
 pnpm --filter @iam/api exec prisma migrate deploy
+# Set ALLOW_DEMO_SEED=true in .env, then seed local iam_dev only:
 pnpm --filter @iam/api db:seed    # demo company + assets + WOs + parts
 pnpm dev                          # web :3000, api :4000
 ```
 
 Open http://localhost:3000 and log in with the demo account:
 
-| Role | Email | Password |
-|---|---|---|
-| Admin | `demo@acme.test` | `Password1` |
-| Manager | `manager@acme.test` | `Password1` |
-| Technician | `tech@acme.test` | `Password1` |
+| Role       | Email               | Password    |
+| ---------- | ------------------- | ----------- |
+| Admin      | `demo@acme.test`    | `Password1` |
+| Manager    | `manager@acme.test` | `Password1` |
+| Technician | `tech@acme.test`    | `Password1` |
 
-The seed is idempotent — safe to re-run. API health check: http://localhost:4000/health · Swagger: http://localhost:4000/docs
+The seed requires `ALLOW_DEMO_SEED=true`, refuses non-loopback/non-`iam_dev`
+databases, and is idempotent. API health check: http://localhost:4000/health ·
+Swagger: http://localhost:4000/docs
 
 ## Screenshots
 
-| Registration | Dashboard |
-|---|---|
+| Registration                                           | Dashboard                                                        |
+| ------------------------------------------------------ | ---------------------------------------------------------------- |
 | ![Register](./docs/screenshots/phase9-01-register.png) | ![Dashboard](./docs/screenshots/phase9-03-dashboard-working.png) |
 
-| Work orders list | Work order detail |
-|---|---|
+| Work orders list                                              | Work order detail                                        |
+| ------------------------------------------------------------- | -------------------------------------------------------- |
 | ![WO list](./docs/screenshots/phase9-04-work-orders-list.png) | ![WO detail](./docs/screenshots/phase9-05-wo-detail.png) |
 
 ## Stack
 
 - **Web:** Next.js 16 (React 19, Turbopack, App Router), Tailwind CSS v4, TanStack Query v5, React Hook Form, Zustand
 - **API:** NestJS 11 (Express 5), Prisma 7 (driver adapter), Zod-validation pipe, Swagger
-- **Data:** PostgreSQL 16, Redis 7 (refresh-token denylist + throttler storage)
-- **Auth:** JWT (`jti`) access (in-memory) + refresh (httpOnly cookie, rotation), `@nestjs/throttler`, role guard
+- **Data:** PostgreSQL 16, Redis 7 (refresh-token family revocation + throttler storage)
+- **Auth:** short-lived JWT access tokens in browser memory; rotating refresh tokens in an httpOnly cookie; Redis-backed throttling and revocation; role guard
 - **Tooling:** pnpm workspaces + Turborepo, Vitest (unit/integration), Playwright (browser E2E), GitHub Actions, Docker
 
 ## Scripts
 
-| Command | Description |
-|---|---|
-| `pnpm dev` | Start web + api in dev mode (Turborepo) |
-| `pnpm build` | Production build of all workspaces |
-| `pnpm lint` / `pnpm typecheck` | ESLint / `tsc --noEmit` across all workspaces |
-| `pnpm test` | Vitest unit + integration (257 tests) |
-| `pnpm --filter @iam/web e2e` | Playwright browser E2E (5 critical paths) |
-| `pnpm --filter @iam/api db:seed` | Seed the demo dataset |
-| `pnpm format` | Prettier write |
+| Command                          | Description                                                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                       | Start web + api in dev mode (Turborepo)                                                                               |
+| `pnpm build`                     | Production build of all workspaces                                                                                    |
+| `pnpm lint` / `pnpm typecheck`   | ESLint / `tsc --noEmit` across all workspaces                                                                         |
+| `pnpm test:unit`                 | Docker-free unit tests across all workspaces                                                                          |
+| `pnpm test`                      | All workspace Vitest suites; API integration cases require isolated Postgres/Redis                                    |
+| `pnpm test:integration`          | API integration suite only; always uncached and requires isolated Postgres/Redis                                      |
+| `pnpm test:prepare`              | Validate the loopback `iam_test` URL, generate Prisma, and apply test migrations                                      |
+| `pnpm test:e2e`                  | Playwright browser E2E against the production web build and a live isolated API                                       |
+| `pnpm verify:fast`               | Fast gate: lint, typecheck, and Docker-free unit tests                                                                |
+| `pnpm verify:full`               | Full local gate: fast gate, test migrations, API integration, build, coverage, self-started API+Playwright, and audit |
+| `pnpm --filter @iam/api db:seed` | Seed the demo dataset                                                                                                 |
+| `pnpm format`                    | Prettier write                                                                                                        |
 
 ## Architecture
 
 ```
 apps/
-  web/        Next.js 16 — App Router, (auth)/(dashboard) route groups, server-component guard
+  web/        Next.js 16 — App Router, (auth)/(dashboard) route groups, client AuthGate
   api/        NestJS 11 — modules: auth, users, locations, categories, assets,
               work-orders, inspections, parts, dashboard, reports, notifications
 packages/
@@ -76,7 +84,7 @@ packages/
 
 **Multi-tenancy:** every domain query is scoped by `companyId` from the JWT. Cross-tenant reads return 404 (no existence leak).
 
-**Auth model (ADR 0002):** hybrid — signed JWTs verified statelessly, plus a Redis denylist keyed by `jti` for refresh-token revocation. Access token in memory (Zustand), refresh token in an httpOnly cookie, rotation on every refresh.
+**Auth model (ADR 0002):** hybrid — access JWTs stay stateless, while Redis atomically tracks consumed refresh `jti`s and revoked token-family `sid`s. Access token in memory (Zustand), refresh token in an httpOnly cookie, rotation on every refresh; detected replay revokes the whole refresh family.
 
 **RBAC:** admin / manager / technician / viewer. Class-level `RolesGuard` for simple role gates; service-layer ownership checks where the rule is "technician if assigned" (work-order transitions, parts consumption).
 
@@ -95,7 +103,7 @@ The repo ships ready-to-use deployment configs; you execute the deploy against y
 3. In the `iam-api` service env, set the `sync: false` vars:
    - `REDIS_URL` → your Upstash Redis endpoint
    - `CORS_ORIGIN`, `PUBLIC_SCAN_BASE` → your deployed Vercel web URL
-4. Migrations + seed run as part of the build command. First deploy may take a few minutes.
+4. Prisma generation and migrations run as part of the build command. Run the seed command manually only when you intentionally want demo data. First deploy may take a few minutes.
 
 ### Redis — Upstash
 
@@ -103,7 +111,7 @@ Create a free Upstash Redis instance, copy its endpoint (`rediss://...`), and se
 
 ### Web — Vercel
 
-1. Import the repo in Vercel. `vercel.json` sets the build (`pnpm --filter @iam/shared build && pnpm --filter @iam/web build`) and the `/api/* → API_ORIGIN` rewrite.
+1. Import the repo in Vercel. `vercel.json` sets the build (`pnpm --filter @iam/shared build && pnpm --filter @iam/web build`); `apps/web/next.config.ts` resolves `API_ORIGIN` at build time for the `/api/*` rewrite.
 2. Set env vars in the Vercel project:
    - `API_ORIGIN` → your deployed Render api URL (e.g. `https://iam-api.onrender.com`)
    - `NEXT_PUBLIC_API_URL` → `/api`
@@ -133,6 +141,10 @@ Not used — per [ADR 0005](./docs/adr/0005-defer-bullmq-r2.md) the CSV report e
 
 ## Testing
 
-- **Vitest** (257 tests) — unit + integration across `api` / `shared` / `web`. API integration tests run on a real PostgreSQL test container (`:5433`).
-- **Playwright** (5 specs) — browser E2E against a live stack: register→dashboard, login→silent-refresh, WO lifecycle, parts-consume→notification (Phase 6→8 loop), RBAC-403.
-- **CI** — `pnpm lint && typecheck && test && build` on every push; a dedicated `playwright` job with artifact upload on failure.
+- **Unit loop:** `pnpm test:unit` runs Docker-free specs for `api`, `shared`, and `web`.
+- **Infra-backed loop:** `docker compose -f docker-compose.test.yml up -d` starts both isolated services. Export `DATABASE_URL_TEST` for the exact loopback `iam_test` database and `REDIS_URL_TEST` for a loopback nonzero Redis database, then set `ALLOW_DESTRUCTIVE_TEST_DATABASE=true`. `pnpm test:prepare` safely applies test migrations; `pnpm test:integration` runs the API suite.
+- **Local gates:** `pnpm verify:fast` is hermetic. With the isolated test environment exported, `pnpm verify:full` prepares migrations, runs integration/build/coverage, starts and stops the built API and web servers for Playwright, and audits production dependencies.
+- **Playwright** (7 scenarios × desktop/mobile) — browser E2E against the self-started production build and isolated API: register→dashboard, login/deep-link→silent-refresh, WO lifecycle, parts-consume→notification, RBAC denial, QR continuation, and QR asset deep-link.
+- **CI** — forced lint/typecheck/unit/integration/build, measured coverage floors, and a high-severity production dependency audit on every default-branch push and pull request; a dedicated two-project Playwright job uploads reports and failure traces.
+
+Contribution and disclosure policies: [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md).

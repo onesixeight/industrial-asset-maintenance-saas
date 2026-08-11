@@ -3,6 +3,7 @@ import type {
   MarkAllReadResponse,
   NotificationListQuery,
   NotificationResponse,
+  PaginatedResponse,
   UnreadCountResponse,
 } from "@iam/shared";
 import { PrismaService } from "../prisma";
@@ -39,14 +40,26 @@ function toNotificationResponse(n: NotificationRow): NotificationResponse {
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(userId: string, query: NotificationListQuery): Promise<NotificationResponse[]> {
-    const rows = await this.prisma.getClient().notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      skip: (query.page - 1) * query.limit,
-      take: query.limit,
-    });
-    return rows.map(toNotificationResponse);
+  async list(
+    userId: string,
+    query: NotificationListQuery,
+  ): Promise<PaginatedResponse<NotificationResponse>> {
+    const where = { userId };
+    const [rows, total] = await Promise.all([
+      this.prisma.getClient().notification.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.getClient().notification.count({ where }),
+    ]);
+    return {
+      items: rows.map(toNotificationResponse),
+      page: query.page,
+      pageSize: query.limit,
+      total,
+    };
   }
 
   async unreadCount(userId: string): Promise<UnreadCountResponse> {

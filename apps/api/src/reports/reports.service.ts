@@ -1,16 +1,28 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, PayloadTooLargeException } from "@nestjs/common";
 import { PrismaService } from "../prisma";
 
-/** RFC 4180 escaping: wrap a field in quotes if it contains comma/quote/newline; double any embedded quotes. */
+const CSV_FORMULA_PREFIX = /^[=+\-@\t\r]/;
+
+/**
+ * Synchronous CSV generation is intentionally capped to keep one request from
+ * retaining an unbounded result set and CSV string in the API process.
+ */
+export const WORK_ORDER_EXPORT_MAX_ROWS = 10_000;
+
+/** RFC 4180 escaping plus formula-injection hardening for spreadsheet apps. */
 export function escapeCsvField(value: string | null | undefined): string {
   if (value === null || value === undefined) return "";
-  const needsQuoting = /[",\n\r]/.test(value);
-  const escaped = value.replace(/"/g, '""');
+  const safeValue = CSV_FORMULA_PREFIX.test(value) ? `'${value}` : value;
+  const needsQuoting = /[",\n\r]/.test(safeValue);
+  const escaped = safeValue.replace(/"/g, '""');
   return needsQuoting ? `"${escaped}"` : escaped;
 }
 
 /** Serialize a header row + data rows to an RFC 4180 CSV string (CRLF line endings). */
-export function toCsv(headers: string[], rows: (string | null | undefined)[][]): string {
+export function toCsv(
+  headers: string[],
+  rows: (string | null | undefined)[][],
+): string {
   const lines = [headers.map(escapeCsvField).join(",")];
   for (const row of rows) {
     lines.push(row.map(escapeCsvField).join(","));
@@ -47,7 +59,8 @@ const HEADERS = [
 /**
  * Tenant-scoped work-order CSV export. Excludes soft-deleted rows. The CSV is
  * generated synchronously (portfolio-scale data volume — see ADR 0005 for why
- * BullMQ/R2 are deferred). Returns the full CSV string.
+ * BullMQ/R2 are deferred). Exports above WORK_ORDER_EXPORT_MAX_ROWS fail with
+ * HTTP 413 so callers get an explicit signal instead of a partial CSV.
  */
 @Injectable()
 export class ReportsService {
@@ -56,9 +69,20 @@ export class ReportsService {
   async generateWorkOrdersCsv(companyId: string): Promise<string> {
     const rows = await this.prisma.getClient().workOrder.findMany({
       where: { companyId, deletedAt: null },
-      orderBy: { createdAt: "desc" },
-      include: { asset: { select: { name: true } }, assignedTo: { select: { email: true } } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: {
+        asset: { select: { name: true } },
+        assignedTo: { select: { email: true } },
+      },
+      // Fetch one sentinel row so an exactly-at-the-limit export still works.
+      take: WORK_ORDER_EXPORT_MAX_ROWS + 1,
     });
+
+    if (rows.length > WORK_ORDER_EXPORT_MAX_ROWS) {
+      throw new PayloadTooLargeException(
+        "Work-order export exceeds the 10,000 row limit",
+      );
+    }
 
     const data = (rows as WorkOrderExportRow[]).map((r) => [
       r.id,

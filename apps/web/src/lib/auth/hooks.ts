@@ -1,32 +1,50 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { LoginRequest, RegisterRequest } from "@iam/shared";
 import { loginApi, logoutApi, registerApi } from "../api/auth";
-import { useAuthStore } from "./store";
+import {
+  acceptIdentity,
+  beginIdentityTransition,
+  clearIdentity,
+} from "./session";
 
 export { useAuth } from "./store";
 
 export function useLogin() {
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: LoginRequest) => loginApi(input),
-    onSuccess: ({ user, accessToken }) => setAuth(user, accessToken),
+    mutationFn: async (input: LoginRequest) => {
+      const transition = beginIdentityTransition();
+      const identity = await loginApi(input, transition.signal);
+      return { identity, transition };
+    },
+    onSuccess: ({ identity, transition }) =>
+      acceptIdentity(identity, queryClient, transition),
   });
 }
 
 export function useRegister() {
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: RegisterRequest) => registerApi(input),
-    onSuccess: ({ user, accessToken }) => setAuth(user, accessToken),
+    mutationFn: async (input: RegisterRequest) => {
+      const transition = beginIdentityTransition();
+      const identity = await registerApi(input, transition.signal);
+      return { identity, transition };
+    },
+    onSuccess: ({ identity, transition }) =>
+      acceptIdentity(identity, queryClient, transition),
   });
 }
 
 export function useLogout() {
-  const clear = useAuthStore((s) => s.clear);
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => logoutApi(),
-    onSuccess: () => clear(),
+    mutationFn: async () => {
+      const transition = beginIdentityTransition();
+      const result = await logoutApi(transition.signal);
+      return { result, transition };
+    },
+    onSuccess: ({ transition }) => clearIdentity(queryClient, transition),
   });
 }

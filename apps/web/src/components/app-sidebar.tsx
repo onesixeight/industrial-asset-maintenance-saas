@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/hooks";
@@ -18,6 +18,71 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const wasOpenRef = useRef(false);
+  const drawerId = "mobile-navigation-drawer";
+
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true;
+      closeRef.current?.focus();
+      return;
+    }
+
+    if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      openerRef.current?.focus();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleDrawerKeyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const drawer = drawerRef.current;
+      if (!drawer) return;
+      const focusable = [
+        ...drawer.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((element) => !element.hasAttribute("inert"));
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) return;
+
+      if (
+        event.shiftKey &&
+        (document.activeElement === first ||
+          !drawer.contains(document.activeElement))
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleDrawerKeyboard);
+    return () => document.removeEventListener("keydown", handleDrawerKeyboard);
+  }, [open]);
+
+  useEffect(() => {
+    const appContent =
+      document.querySelector<HTMLElement>("[data-app-content]");
+    if (!appContent) return;
+    if (open) appContent.setAttribute("inert", "");
+    else appContent.removeAttribute("inert");
+    return () => appContent.removeAttribute("inert");
+  }, [open]);
 
   const links: { href: string; label: string; adminOnly?: boolean }[] = [
     { href: "/dashboard", label: "Dashboard" },
@@ -34,11 +99,16 @@ export function AppSidebar() {
 
   const nav = (
     <>
-      <Link href="/dashboard" className="mb-4 text-lg font-bold">
+      <Link
+        href="/dashboard"
+        className="mb-4 text-lg font-bold"
+        onClick={() => setOpen(false)}
+      >
         IAM
       </Link>
       {links.map((l) => {
-        if (l.adminOnly && user?.role !== "admin" && user?.role !== "manager") return null;
+        if (l.adminOnly && user?.role !== "admin" && user?.role !== "manager")
+          return null;
         const active = pathname === l.href;
         return (
           <Link
@@ -60,8 +130,11 @@ export function AppSidebar() {
     <>
       {/* Mobile hamburger — visible only below md. */}
       <button
+        ref={openerRef}
         type="button"
         aria-label="Open navigation"
+        aria-controls={drawerId}
+        aria-expanded={open}
         className="fixed left-4 top-3 z-30 rounded-[var(--radius)] border border-border bg-background p-2 md:hidden"
         onClick={() => setOpen(true)}
       >
@@ -84,10 +157,26 @@ export function AppSidebar() {
 
       {/* Mobile drawer panel. */}
       <aside
+        ref={drawerRef}
+        id={drawerId}
+        aria-label="Mobile navigation"
+        role={open ? "dialog" : undefined}
+        aria-modal={open ? "true" : undefined}
+        aria-hidden={open ? undefined : true}
+        inert={open ? undefined : true}
         className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col gap-1 border-r border-border bg-muted p-4 pt-16 transition-transform md:hidden ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
+        <button
+          ref={closeRef}
+          type="button"
+          aria-label="Close navigation"
+          className="mb-2 self-end rounded-[var(--radius)] border border-border bg-background px-3 py-2"
+          onClick={() => setOpen(false)}
+        >
+          <span aria-hidden="true">×</span>
+        </button>
         {nav}
       </aside>
     </>

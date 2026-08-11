@@ -1,5 +1,7 @@
 import { Global, Module, OnApplicationBootstrap } from "@nestjs/common";
 import { ConfigModule as NestConfigModule } from "@nestjs/config";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { validateEnv, type Env } from "./env.config";
 
 /**
@@ -15,12 +17,27 @@ function buildValidatedEnv(): Env {
   return validateEnv();
 }
 
+function findWorkspaceEnv(startDirectory = process.cwd()): string {
+  let directory = resolve(startDirectory);
+
+  while (true) {
+    if (existsSync(join(directory, "pnpm-workspace.yaml"))) {
+      return join(directory, ".env");
+    }
+
+    const parent = dirname(directory);
+    if (parent === directory) return join(startDirectory, ".env");
+    directory = parent;
+  }
+}
+
 @Global()
 @Module({
   imports: [
     NestConfigModule.forRoot({
       // We perform our own Zod validation; let @nestjs/config load the raw env
-      // (and root .env) without its own validation.
+      // (and the documented workspace-root .env) without its own validation.
+      envFilePath: findWorkspaceEnv(),
       validate: () => buildValidatedEnv() as unknown as Record<string, unknown>,
       cache: true,
       expandVariables: true,

@@ -1,11 +1,17 @@
-import { test, expect, request } from "@playwright/test";
-import { registerCompany, seedAsset, loginThroughUi, API } from "./helpers";
+import { expect, request, test } from "./fixtures";
+import {
+  registerCompany,
+  loginThroughUi,
+  navigateViaSidebar,
+  API,
+} from "./helpers";
 
 test.describe("#5 RBAC — viewer cannot create work orders", () => {
-  test("a viewer's create-work-order submission is rejected by the backend (403)", async ({ page }) => {
+  test("the create action is hidden and a direct form URL stays unavailable", async ({
+    page,
+  }) => {
     const suffix = `rbac-${Date.now()}`;
     const adminSession = await registerCompany(suffix);
-    const assetId = await seedAsset(adminSession.accessToken);
 
     // Admin creates a viewer in the same company.
     const ctx = await request.newContext({ baseURL: API });
@@ -19,25 +25,21 @@ test.describe("#5 RBAC — viewer cannot create work orders", () => {
       },
       headers: { Authorization: `Bearer ${adminSession.accessToken}` },
     });
-    expect(viewerRes.ok()).toBeTruthy();
+    expect(viewerRes.status()).toBe(201);
     await ctx.dispose();
 
     // Viewer logs in (admin-created → must-change-password gate, handled by helper).
     await loginThroughUi(page, `viewer-${suffix}@test.local`);
 
-    // Navigate to the new-work-order form and submit. The viewer can reach the
-    // form (the UI doesn't cosmetically hide it), but the backend RolesGuard
-    // rejects the POST with 403 — that's the real RBAC contract.
-    await page.getByRole("link", { name: /work orders/i }).first().click();
-    await page.getByRole("link", { name: /new work order/i }).click();
-    await expect(page).toHaveURL(/\/work-orders\/new/);
+    // The UI capability map hides the unauthorized action. Backend RolesGuard
+    // coverage remains authoritative in the API integration suite.
+    await navigateViaSidebar(page, /^work orders$/i, /\/work-orders/);
+    await expect(
+      page.getByRole("link", { name: /new work order/i }),
+    ).toHaveCount(0);
 
-    await page.getByLabel(/title/i).fill("Viewer attempt");
-    await page.getByLabel(/^asset/i).selectOption({ label: "Pump 1" });
-    await page.getByRole("button", { name: /^create$/i }).click();
-
-    // The form surfaces an error and does NOT navigate to a new WO detail page.
-    await expect(page.locator("text=/destructive|forbidden|403|HTTP 403/i").or(page.locator(".text-destructive"))).toBeVisible({ timeout: 10_000 });
+    await page.goto("/work-orders/new");
+    await expect(page.getByText(/do not have permission/i)).toBeVisible();
     await expect(page).toHaveURL(/\/work-orders\/new/);
   });
 });

@@ -18,7 +18,9 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-function makePrisma(deleg: Record<string, Record<string, ReturnType<typeof vi.fn>>> = {}) {
+function makePrisma(
+  deleg: Record<string, Record<string, ReturnType<typeof vi.fn>>> = {},
+) {
   const notification = {
     findMany: vi.fn().mockResolvedValue([]),
     findFirst: vi.fn().mockResolvedValue(null),
@@ -34,12 +36,21 @@ function makePrisma(deleg: Record<string, Record<string, ReturnType<typeof vi.fn
 describe("NotificationsService.list", () => {
   it("scopes by userId, paginates, maps createdAt to ISO", async () => {
     const findMany = vi.fn().mockResolvedValue([row(), row({ id: "n-2" })]);
-    const prisma = makePrisma({ notification: { findMany } });
+    const prisma = makePrisma({
+      notification: { findMany, count: vi.fn().mockResolvedValue(2) },
+    });
     const svc = new NotificationsService(prisma);
-    const result = await svc.list(USER, { page: 1, limit: 50, search: undefined });
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: USER } }));
-    expect(result).toHaveLength(2);
-    expect(result[0].createdAt).toBe("2026-01-01T00:00:00.000Z");
+    const result = await svc.list(USER, {
+      page: 1,
+      limit: 50,
+      search: undefined,
+    });
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: USER } }),
+    );
+    expect(result).toMatchObject({ page: 1, pageSize: 50, total: 2 });
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0].createdAt).toBe("2026-01-01T00:00:00.000Z");
   });
 
   it("applies pagination skip/take", async () => {
@@ -47,7 +58,13 @@ describe("NotificationsService.list", () => {
     const prisma = makePrisma({ notification: { findMany } });
     const svc = new NotificationsService(prisma);
     await svc.list(USER, { page: 3, limit: 10, search: undefined });
-    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 20, take: 10 }));
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: 20,
+        take: 10,
+      }),
+    );
   });
 });
 
@@ -57,7 +74,9 @@ describe("NotificationsService.unreadCount", () => {
     const prisma = makePrisma({ notification: { count } });
     const svc = new NotificationsService(prisma);
     const result = await svc.unreadCount(USER);
-    expect(count).toHaveBeenCalledWith({ where: { userId: USER, read: false } });
+    expect(count).toHaveBeenCalledWith({
+      where: { userId: USER, read: false },
+    });
     expect(result).toEqual({ count: 4 });
   });
 });
@@ -70,14 +89,19 @@ describe("NotificationsService.markRead", () => {
     });
     const svc = new NotificationsService(prisma);
     const result = await svc.markRead("n-1", USER);
-    expect(update).toHaveBeenCalledWith({ where: { id: "n-1" }, data: { read: true } });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "n-1" },
+      data: { read: true },
+    });
     expect(result.read).toBe(true);
   });
 
   it("throws NotFound when the notification belongs to another user (IDOR)", async () => {
     const prisma = makePrisma();
     const svc = new NotificationsService(prisma);
-    await expect(svc.markRead("n-1", OTHER)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(svc.markRead("n-1", OTHER)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });
 

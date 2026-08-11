@@ -20,11 +20,13 @@ import type {
   AssetResponse,
   CreateAssetRequest,
   JwtPayload,
+  UpdateAssetStatusRequest,
   UpdateAssetRequest,
 } from "@iam/shared";
 import {
   assetFiltersSchema,
   createAssetRequestSchema,
+  updateAssetStatusRequestSchema,
   updateAssetRequestSchema,
 } from "@iam/shared";
 import { ZodValidationPipe } from "../common/zod-validation.pipe";
@@ -57,7 +59,10 @@ export class AssetsController {
   }
 
   @Get("qr/:token")
-  scan(@CurrentUser() user: JwtPayload, @Param("token") token: string): Promise<AssetResponse> {
+  scan(
+    @CurrentUser() user: JwtPayload,
+    @Param("token") token: string,
+  ): Promise<AssetResponse> {
     return this.assets.findByQr(token, user.companyId);
   }
 
@@ -85,7 +90,8 @@ export class AssetsController {
   @HttpCode(HttpStatus.CREATED)
   create(
     @CurrentUser() user: JwtPayload,
-    @Body(new ZodValidationPipe(createAssetRequestSchema)) body: CreateAssetRequest,
+    @Body(new ZodValidationPipe(createAssetRequestSchema))
+    body: CreateAssetRequest,
   ) {
     return this.assets.create(body, user.companyId);
   }
@@ -96,9 +102,22 @@ export class AssetsController {
   update(
     @CurrentUser() user: JwtPayload,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(updateAssetRequestSchema)) body: UpdateAssetRequest,
+    @Body(new ZodValidationPipe(updateAssetRequestSchema))
+    body: UpdateAssetRequest,
   ) {
     return this.assets.update(id, body, user.companyId);
+  }
+
+  @Patch(":id/status")
+  @UseGuards(RolesGuard)
+  @Roles("admin", "manager")
+  updateStatus(
+    @CurrentUser() user: JwtPayload,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(updateAssetStatusRequestSchema))
+    body: UpdateAssetStatusRequest,
+  ) {
+    return this.assets.updateStatus(id, body.status, user.companyId);
   }
 
   @Delete(":id")

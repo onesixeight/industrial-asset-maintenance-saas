@@ -6,13 +6,17 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import type { Prisma } from "@prisma/client";
 import * as QRCode from "qrcode";
 import type {
   AssetFilters,
   AssetResponse,
+  AssetStatus,
   CreateAssetRequest,
+  PaginatedResponse,
   UpdateAssetRequest,
 } from "@iam/shared";
+import { deleteWithForeignKeyConflict } from "../common/prisma-delete";
 import { PrismaService } from "../prisma";
 
 /** Opaque, URL-safe, scan-stable token (192 bits of entropy). */
@@ -71,22 +75,34 @@ export class AssetsService {
 
   // --- CRUD ---------------------------------------------------------------
 
-  async list(companyId: string, filters: AssetFilters): Promise<AssetResponse[]> {
-    const rows = await this.prisma.getClient().asset.findMany({
-      where: {
-        companyId,
-        name: filters.search
-          ? { contains: filters.search, mode: "insensitive" }
-          : undefined,
-        status: filters.status,
-        locationId: filters.locationId,
-        categoryId: filters.categoryId,
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (filters.page - 1) * filters.limit,
-      take: filters.limit,
-    });
-    return rows.map(toAssetResponse);
+  async list(
+    companyId: string,
+    filters: AssetFilters,
+  ): Promise<PaginatedResponse<AssetResponse>> {
+    const where: Prisma.AssetWhereInput = {
+      companyId,
+      name: filters.search
+        ? { contains: filters.search, mode: "insensitive" }
+        : undefined,
+      status: filters.status,
+      locationId: filters.locationId,
+      categoryId: filters.categoryId,
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.getClient().asset.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (filters.page - 1) * filters.limit,
+        take: filters.limit,
+      }),
+      this.prisma.getClient().asset.count({ where }),
+    ]);
+    return {
+      items: rows.map(toAssetResponse),
+      page: filters.page,
+      pageSize: filters.limit,
+      total,
+    };
   }
 
   async get(id: string, companyId: string): Promise<AssetResponse> {
@@ -97,7 +113,10 @@ export class AssetsService {
     return toAssetResponse(asset);
   }
 
-  async create(input: CreateAssetRequest, companyId: string): Promise<AssetResponse> {
+  async create(
+    input: CreateAssetRequest,
+    companyId: string,
+  ): Promise<AssetResponse> {
     await this.validateFks(input.locationId, input.categoryId, companyId);
     // Generate an opaque token; on the astronomically-unlikely qrCode P2002,
     // retry once with fresh entropy before surfacing the error.
@@ -108,7 +127,8 @@ export class AssetsService {
         });
         return toAssetResponse(row);
       } catch (err) {
-        if ((err as { code?: string }).code === "P2002" && attempt === 0) continue;
+        if ((err as { code?: string }).code === "P2002" && attempt === 0)
+          continue;
         throw err;
       }
     }
@@ -130,20 +150,42 @@ export class AssetsService {
         companyId,
       );
     }
-    const row = await this.prisma.getClient().asset.update({ where: { id }, data: input });
+    const row = await this.prisma
+      .getClient()
+      .asset.update({ where: { id }, data: input });
+    return toAssetResponse(row);
+  }
+
+  async updateStatus(
+    id: string,
+    status: AssetStatus,
+    companyId: string,
+  ): Promise<AssetResponse> {
+    await this.get(id, companyId);
+    const row = await this.prisma.getClient().asset.update({
+      where: { id },
+      data: { status },
+    });
     return toAssetResponse(row);
   }
 
   async remove(id: string, companyId: string): Promise<void> {
     await this.get(id, companyId);
     const [workOrders, inspections] = await Promise.all([
-      this.prisma.getClient().workOrder.count({ where: { assetId: id, companyId } }),
-      this.prisma.getClient().inspection.count({ where: { assetId: id, companyId } }),
+      this.prisma
+        .getClient()
+        .workOrder.count({ where: { assetId: id, companyId } }),
+      this.prisma
+        .getClient()
+        .inspection.count({ where: { assetId: id, companyId } }),
     ]);
     if (workOrders + inspections > 0) {
       throw new ConflictException("Asset has work orders or inspections");
     }
-    await this.prisma.getClient().asset.delete({ where: { id } });
+    await deleteWithForeignKeyConflict(
+      () => this.prisma.getClient().asset.delete({ where: { id } }),
+      "Asset has work orders or inspections",
+    );
   }
 
   // --- QR -----------------------------------------------------------------
@@ -193,7 +235,9 @@ export class AssetsService {
       }),
     ]);
     if (!loc || !cat) {
-      throw new BadRequestException("Invalid location or category for this company");
+      throw new BadRequestException(
+        "Invalid location or category for this company",
+      );
     }
   }
 }

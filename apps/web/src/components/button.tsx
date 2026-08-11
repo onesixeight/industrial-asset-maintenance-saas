@@ -10,11 +10,18 @@ const variants: Record<NonNullable<ButtonProps["variant"]>, string> = {
   ghost: "bg-transparent hover:bg-muted",
 };
 
+export function buttonClassName(
+  variant: NonNullable<ButtonProps["variant"]> = "default",
+  className = "",
+): string {
+  return `inline-flex h-10 items-center justify-center rounded-[var(--radius)] px-4 text-sm font-medium transition ${variants[variant]} ${className}`;
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className = "", variant = "default", ...props }, ref) => (
     <button
       ref={ref}
-      className={`inline-flex h-10 items-center justify-center rounded-[var(--radius)] px-4 text-sm font-medium transition disabled:opacity-50 ${variants[variant]} ${className}`}
+      className={`${buttonClassName(variant, className)} disabled:opacity-50`}
       {...props}
     />
   ),

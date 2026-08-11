@@ -3,30 +3,41 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { inspectionsApi, templatesApi } from "@/lib/api/inspections";
+import { inspectionsApi } from "@/lib/api/inspections";
 import { fmtDate } from "@/lib/format";
 import { PassedBadge } from "@/components/passed-badge";
+import { QueryState } from "@/components/query-state";
 
 export default function InspectionDetailPage() {
   const params = useParams<{ id: string }>();
-  const { data: insp, isLoading } = useQuery({
+  const inspectionQuery = useQuery({
     queryKey: ["inspection", params.id],
-    queryFn: () => inspectionsApi.get(params.id),
+    queryFn: ({ signal }) => inspectionsApi.get(params.id, signal),
   });
-  const { data: template } = useQuery({
-    queryKey: ["template", insp?.templateId],
-    queryFn: () => templatesApi.get(insp!.templateId),
-    enabled: !!insp?.templateId,
-  });
+  const insp = inspectionQuery.data;
+  if (!insp)
+    return (
+      <QueryState
+        isLoading={inspectionQuery.isLoading}
+        error={inspectionQuery.error}
+        onRetry={() => inspectionQuery.refetch()}
+        isEmpty={!inspectionQuery.isLoading && !inspectionQuery.error}
+        emptyMessage="Inspection not found."
+      >
+        content
+      </QueryState>
+    );
 
-  if (isLoading) return <p className="text-muted-foreground">Loading…</p>;
-  if (!insp) return <p>Inspection not found.</p>;
-
-  const itemLabel = (itemId: string) => template?.items.find((i) => i.id === itemId)?.label ?? itemId;
+  const itemLabel = (itemId: string) =>
+    insp.templateSnapshot.items.find((item) => item.id === itemId)?.label ??
+    itemId;
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/inspections" className="text-sm text-muted-foreground hover:text-foreground">
+      <Link
+        href="/inspections"
+        className="text-sm text-muted-foreground hover:text-foreground"
+      >
         ← Back to inspections
       </Link>
       <div className="flex items-center gap-4">
@@ -38,7 +49,9 @@ export default function InspectionDetailPage() {
         <dt className="text-muted-foreground">Asset</dt>
         <dd>{insp.assetId}</dd>
         <dt className="text-muted-foreground">Template</dt>
-        <dd>{template?.name ?? insp.templateId}</dd>
+        <dd>
+          {insp.templateSnapshot.name} (version {insp.templateVersion})
+        </dd>
         <dt className="text-muted-foreground">Inspector</dt>
         <dd>{insp.inspectedById}</dd>
         <dt className="text-muted-foreground">Date</dt>
@@ -50,9 +63,18 @@ export default function InspectionDetailPage() {
       <div className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold">Checklist results</h2>
         {insp.results.map((r, i) => (
-          <div key={i} className="flex items-center justify-between rounded-[var(--radius)] border border-border p-3 text-sm">
+          <div
+            key={i}
+            className="flex items-center justify-between rounded-[var(--radius)] border border-border p-3 text-sm"
+          >
             <span>{itemLabel(r.itemId)}</span>
-            <span className={r.value === "pass" ? "text-green-700" : "text-destructive"}>{r.value.toUpperCase()}</span>
+            <span
+              className={
+                r.value === "pass" ? "text-green-700" : "text-destructive"
+              }
+            >
+              {r.value.toUpperCase()}
+            </span>
           </div>
         ))}
       </div>

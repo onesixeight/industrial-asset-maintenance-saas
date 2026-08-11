@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { partsApi } from "@/lib/api/parts";
 import { Button } from "@/components/button";
+import { QueryState } from "@/components/query-state";
+import { can } from "@/lib/auth/capabilities";
+import { useAuth } from "@/lib/auth/hooks";
 
 export default function NewPartPage() {
   const router = useRouter();
@@ -13,8 +16,14 @@ export default function NewPartPage() {
   const [quantity, setQuantity] = useState("0");
   const [minQuantity, setMinQuantity] = useState("0");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitInFlight = useRef(false);
+  const { user } = useAuth();
 
   async function onSubmit() {
+    if (submitInFlight.current) return;
+    submitInFlight.current = true;
+    setIsSubmitting(true);
     setErrorMsg(null);
     try {
       await partsApi.create({
@@ -34,7 +43,20 @@ export default function NewPartPage() {
             ? "Only managers/admins can create parts."
             : (e as Error).message,
       );
+    } finally {
+      submitInFlight.current = false;
+      setIsSubmitting(false);
     }
+  }
+
+  if (!can(user?.role, "managePart")) {
+    return (
+      <QueryState
+        error={Object.assign(new Error("Forbidden"), { status: 403 })}
+      >
+        content
+      </QueryState>
+    );
   }
 
   return (
@@ -88,9 +110,11 @@ export default function NewPartPage() {
             />
           </label>
         </div>
-        {errorMsg ? <p className="text-sm text-destructive">{errorMsg}</p> : null}
-        <Button onClick={onSubmit} disabled={!name || !sku}>
-          Create part
+        {errorMsg ? (
+          <p className="text-sm text-destructive">{errorMsg}</p>
+        ) : null}
+        <Button onClick={onSubmit} disabled={!name || !sku || isSubmitting}>
+          {isSubmitting ? "Creating…" : "Create part"}
         </Button>
       </div>
     </div>
